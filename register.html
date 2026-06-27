@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VG HUB | สมัครสมาชิกใหม่</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700&family=Poppins:wght@400;600;700&family=Noto+Sans+Thai:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Lato', 'Poppins', 'Noto Sans Thai', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased min-h-screen flex items-center justify-center p-4">
+
+    <div class="w-full max-w-md bg-white/80 backdrop-blur-md border border-slate-200/60 p-8 rounded-3xl shadow-xl shadow-slate-200/50 space-y-6">
+        <div class="text-center space-y-1.5">
+            <h1 class="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-rose-500 uppercase tracking-wider">Create Account</h1>
+            <p class="text-xs text-slate-400 font-medium">ร่วมเป็นส่วนหนึ่งของคอมมูนิตี้ครีเอเตอร์ VG HUB</p>
+        </div>
+
+        <hr class="border-slate-100">
+
+        <form id="form-register" class="space-y-4">
+            <div class="space-y-1">
+                <label class="text-[10px] font-bold uppercase tracking-wider text-slate-500">ชื่อ-นามสกุล / นามแฝง</label>
+                <input type="text" id="reg-name" placeholder="เช่น Somchai Creative" class="w-full bg-white text-xs px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-slate-800 shadow-2xs placeholder:text-slate-300" required>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div class="space-y-1">
+                    <label class="text-[10px] font-bold uppercase tracking-wider text-slate-500">เบอร์โทรศัพท์</label>
+                    <input type="tel" id="reg-phone" placeholder="08X-XXXXXXX" class="w-full bg-white text-xs px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-slate-800 shadow-2xs placeholder:text-slate-300" required>
+                </div>
+                <div class="space-y-1">
+                    <label class="text-[10px] font-bold uppercase tracking-wider text-slate-500">LINE ID</label>
+                    <input type="text" id="reg-line" placeholder="Line_ID" class="w-full bg-white text-xs px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-slate-800 shadow-2xs placeholder:text-slate-300" required>
+                </div>
+            </div>
+
+            <div class="space-y-1">
+                <label class="text-[10px] font-bold uppercase tracking-wider text-slate-500">อีเมล (Email)</label>
+                <input type="email" id="reg-email" placeholder="example@vghub.com" class="w-full bg-white text-xs px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-slate-800 shadow-2xs placeholder:text-slate-300" required>
+            </div>
+
+            <div class="space-y-1">
+                <label class="text-[10px] font-bold uppercase tracking-wider text-slate-500">รหัสผ่าน (Password)</label>
+                <input type="password" id="reg-password" placeholder="อย่างน้อย 6 ตัวอักษร" class="w-full bg-white text-xs px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-slate-800 shadow-2xs placeholder:text-slate-300" required>
+            </div>
+
+            <button type="submit" class="w-full py-3 bg-gradient-to-r from-orange-600 to-rose-600 hover:from-orange-500 hover:to-rose-500 text-white rounded-xl text-xs font-bold shadow-md shadow-orange-600/10 transition-all uppercase tracking-wider">
+                Sign Up / สมัครสมาชิก
+            </button>
+        </form>
+
+        <div class="text-center pt-2 border-t border-slate-100">
+            <p class="text-xs text-slate-400 font-medium">มีบัญชีอยู่แล้วใช่ไหม? <a href="login.html" class="text-orange-600 hover:text-orange-700 font-bold ml-1 transition-colors">เข้าสู่ระบบที่นี่</a></p>
+        </div>
+    </div>
+
+    <script type="module" src="./register.js"></script>
+</body>
+</html>
