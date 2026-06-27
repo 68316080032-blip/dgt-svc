@@ -1,564 +1,434 @@
-// app.js
-import { auth, db } from "./firebase-config.js";
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { doc, setDoc, getDoc, collection, addDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, where, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+// admin.js
+import { db, auth } from "./firebase-config.js";
+import { collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+// 🌟 นำเข้าฟังก์ชันและระบบสแกนคำหยาบจาก utils.js ของคุณ
+import { convertDriveUrl, containsProfanity } from "./utils.js"; 
 
-import { convertDriveUrl, convertDriveVideoUrl, navigateTo } from "./utils.js";
-import { fetchUserPortfolio, initUploadEngine, openProfileModal } from "./dashboard.js";
-import { fetchAdminPendingWorks } from "./admin.js";
+let allUsersCache = [];       
+let filteredUsersCache = [];  
+let currentPage = 1;          
+const itemsPerPage = 5; 
+let currentAdminRole = "user"; 
+let currentEditingUid = ""; 
 
-let allPortfolios = [];
-let cachedUsers = {}; // แคชข้อมูลเพื่อความเร็วและลดการดึงซ้ำ
-let currentUser = null;
-let userData = null;
-let authMode = "login";
-let activeCommentUnsubscribe = null; 
-let currentReplyParentId = null; 
-
-window.currentUser = null;
-window.filterGalleryByCategory = filterGalleryByCategory;
-window.navigateTo = navigateTo;
-window.openCreatorPopupModal = openCreatorPopupModal; 
-
-// Helper สำหรับแปลงลิงก์ Social
-function extractSocialUsername(url, platform) {
-    if (!url || url.trim() === "") return "-";
-    try {
-        let cleaned = url.trim().replace(/\/$/, "");
-        const urlObj = new URL(cleaned.startsWith("http") ? cleaned : `https://${cleaned}`);
-        let pathname = urlObj.pathname;
-        
-        if (platform === "instagram" || platform === "tiktok") {
-            let parts = pathname.split("/").filter(p => p);
-            if (parts.length > 0) return parts[0].startsWith("@") ? parts[0] : `@${parts[0]}`;
-        }
-        if (platform === "facebook") {
-            let parts = pathname.split("/").filter(p => p && p !== "profile.php");
-            if (parts.length > 0) return parts[0];
-        }
-        return "เปิดลิงก์";
-    } catch (e) {
-        return "เปิดลิงก์";
-    }
+export function setGlobalAdminRole(role) {
+    currentAdminRole = (role || "").toLowerCase().trim();
 }
 
-// โหลดฐานข้อมูล User เก็บไว้ใน Cache เผื่อดึงชื่อทันที
-async function prefetchAllUsers() {
-    try {
-        const snap = await getDocs(collection(db, "users"));
-        snap.forEach(docSnap => {
-            cachedUsers[docSnap.id] = docSnap.data();
-        });
-    } catch (e) {
-        console.error("Error prefetching users:", e);
-    }
-}
-
-// 🔴 แก้ไข: ฟังก์ชันแสดงป๊อปอัปโปรไฟล์ดึงชื่อที่ถูกต้อง
-async function openCreatorPopupModal(e, ownerId) {
-    e.stopPropagation(); // กันไม่ให้หลุดไปคลิกเปิดหน้าดีเทลงานซ้อนกัน
-    
-    let targetUser = cachedUsers[ownerId];
-    // ถ้าไม่มีใน Cache ให้ดึงตรงจาก Firestore ณ ตอนนั้น
-    if (!targetUser) {
-        const uDoc = await getDoc(doc(db, "users", ownerId));
-        if (uDoc.exists()) {
-            targetUser = uDoc.data();
-            cachedUsers[ownerId] = targetUser; // เก็บเข้าแคชไว้คราวหน้า
-        }
-    }
-    
-    // ตั้งค่าแสดงชื่อ (ตรวจสอบเผื่อระบบเก็บเป็น name หรือ username หรือ fallback เป็น email)
-    let displayName = "ไม่ระบุชื่อ";
-    if (targetUser) {
-        displayName = targetUser.name || targetUser.username || (targetUser.email ? targetUser.email.split('@')[0] : "Creator");
-    }
-
-    // อัปเดตข้อมูลลง UI ของ Pop-up
-    document.getElementById("pop-creator-name").innerText = displayName;
-    document.getElementById("pop-phone").innerText = (targetUser && targetUser.phone) ? targetUser.phone : "-";
-    document.getElementById("pop-line").innerText = (targetUser && targetUser.line) ? targetUser.line : "-";
-    document.getElementById("pop-other").innerText = (targetUser && targetUser.other) ? targetUser.other : "-";
-
-    const avatarBox = document.getElementById("pop-creator-avatar");
-    if (avatarBox) {
-        if (targetUser && targetUser.avatar) {
-            avatarBox.innerHTML = `<img src="${convertDriveUrl(targetUser.avatar)}" class="w-full h-full object-cover">`;
-        } else {
-            avatarBox.innerHTML = "👤";
-        }
-    }
-
-    // ผูกลิงก์ช่องทางโซเชียลมีเดียต่างๆ
-    const fbBtn = document.getElementById("pop-fb");
-    const igBtn = document.getElementById("pop-ig");
-    const ttBtn = document.getElementById("pop-tt");
-
-    if (targetUser && targetUser.facebook) { fbBtn.href = targetUser.facebook; fbBtn.innerText = extractSocialUsername(targetUser.facebook, "facebook"); fbBtn.className = "p-1.5 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 truncate block"; }
-    else { fbBtn.href = "#"; fbBtn.innerText = "-"; fbBtn.className = "p-1.5 rounded-lg bg-neutral-900 text-neutral-600 border border-white/5 pointer-events-none truncate block"; }
-
-    if (targetUser && targetUser.instagram) { igBtn.href = targetUser.instagram; igBtn.innerText = extractSocialUsername(targetUser.instagram, "instagram"); igBtn.className = "p-1.5 rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/20 truncate block"; }
-    else { igBtn.href = "#"; igBtn.innerText = "-"; igBtn.className = "p-1.5 rounded-lg bg-neutral-900 text-neutral-600 border border-white/5 pointer-events-none truncate block"; }
-
-    if (targetUser && targetUser.tiktok) { ttBtn.href = targetUser.tiktok; ttBtn.innerText = extractSocialUsername(targetUser.tiktok, "tiktok"); ttBtn.className = "p-1.5 rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 truncate block"; }
-    else { ttBtn.href = "#"; ttBtn.innerText = "-"; ttBtn.className = "p-1.5 rounded-lg bg-neutral-900 text-neutral-600 border border-white/5 pointer-events-none truncate block"; }
-
-    document.getElementById("modal-creator-popup").classList.remove("hidden");
-}
-
-window.toggleCommentMenu = function(e, commentId) {
-    e.stopPropagation(); 
-    document.querySelectorAll('.comment-menu-dropdown').forEach(el => {
-        if (el.id !== `menu-dropdown-${commentId}`) el.classList.add('hidden');
-    });
-    const dropdown = document.getElementById(`menu-dropdown-${commentId}`);
-    if (dropdown) dropdown.classList.toggle('hidden');
-};
-
-document.addEventListener("click", () => {
-    document.querySelectorAll('.comment-menu-dropdown').forEach(el => el.classList.add('hidden'));
+// 🌟 สั่งให้ระบบผื่อ Event เตรียมพร้อมใช้งาน Modal ทั้งหมดทันทีที่เปิดหน้าเว็บสำเร็จ
+document.addEventListener("DOMContentLoaded", () => {
+    initUserModalEvents();
+    initPortfolioModalEvents(); 
 });
 
-window.toggleRepliesVisibility = function(parentId) {
-    const el = document.getElementById(`replies-container-${parentId}`);
-    const btn = document.getElementById(`btn-toggle-replies-${parentId}`);
-    if (el && btn) {
-        if (el.classList.contains("hidden")) {
-            el.classList.remove("hidden");
-            btn.innerText = "🔼 ซ่อนข้อความตอบกลับ";
-        } else {
-            el.classList.add("hidden");
-            btn.innerText = `💬 ดูข้อความตอบกลับเพิ่มเติม...`;
-        }
-    }
-};
-
-window.deleteCommentAction = async function(portfolioId, commentId) {
-    if (!confirm("คุณต้องการลบความคิดเห็นนี้ใช่หรือไม่?")) return;
-    try {
-        await deleteDoc(doc(db, "portfolios", portfolioId, "comments", commentId));
-        alert("ลบความคิดเห็นสำเร็จ");
-    } catch (err) {
-        alert("ไม่สามารถลบได้: " + err.message);
-    }
-};
-
+// ================= 🔐 SECURITY GATE =================
 onAuthStateChanged(auth, async (user) => {
-    const authZone = document.getElementById("navbar-auth-zone");
-    await prefetchAllUsers(); 
-
     if (user) {
-        currentUser = user; window.currentUser = user; 
-        const userDoc = await getDoc(doc(db, "users", user.uid));
-        if (userDoc.exists()) { userData = userDoc.data(); } 
-        else {
-            userData = { name: user.email.split('@')[0], email: user.email, role: "user", phone: "", line: "", facebook: "", instagram: "", tiktok: "", other: "", avatar: user.photoURL || "" };
-            await setDoc(doc(db, "users", user.uid), userData);
+        try {
+            const userDoc = await getDoc(doc(db, "users", user.uid));
+            if (userDoc.exists()) {
+                const uData = userDoc.data();
+                const userRole = (uData.role || "").toLowerCase().trim();
+                
+                if (userRole === "admin" || userRole === "dev") {
+                    setGlobalAdminRole(userRole);
+                    
+                    initUserManagement();
+                    fetchAdminPendingWorks();
+                    initOnlineStaffMonitor(user.uid);
+                } else {
+                    alert("🔒 ปฏิเสธการเข้าถึง: คุณไม่มีสิทธิ์เข้าใช้งานระบบหลังบ้าน");
+                    window.location.href = "index.html";
+                }
+            } else {
+                alert("🔒 ไม่พบข้อมูลโปรไฟล์ของคุณในระบบหลัก");
+                window.location.href = "index.html";
+            }
+        } catch (e) {
+            console.error("Security gate error:", e);
+            window.location.href = "index.html";
         }
-        
-        const usernameDisplay = document.getElementById("profile-username-display");
-        if (usernameDisplay) usernameDisplay.innerText = userData.name || userData.username || user.email;
-        const avatarContainer = document.getElementById("dashboard-avatar-container");
-        if (userData.avatar && avatarContainer) avatarContainer.innerHTML = `<img src="${convertDriveUrl(userData.avatar)}" class="w-full h-full object-cover rounded-full">`;
-        
-        if (userData.role === "admin") {
-            document.getElementById("admin-approval-section")?.classList.remove("hidden");
-            fetchAdminPendingWorks();
-        } else {
-            document.getElementById("admin-approval-section")?.classList.add("hidden");
-        }
-
-        if (authZone) {
-            authZone.innerHTML = `
-                <button id="nav-btn-dash" class="text-xs bg-neutral-900 border border-white/10 hover:bg-neutral-800 text-white font-medium px-4 py-2 rounded-xl transition">พื้นที่ทำงาน</button>
-                <button id="nav-btn-logout" class="text-xs text-neutral-400 hover:text-rose-400 transition cursor-pointer">ออกจากระบบ</button>
-            `;
-            document.getElementById("nav-btn-dash").onclick = () => navigateTo("dashboard");
-            document.getElementById("nav-btn-logout").onclick = () => signOut(auth).then(() => location.reload());
-        }
-        fetchUserPortfolio(currentUser); initUploadEngine(currentUser, userData);   
     } else {
-        currentUser = null; window.currentUser = null; userData = null;
-        document.getElementById("admin-approval-section")?.classList.add("hidden");
-        if (authZone) {
-            authZone.innerHTML = `<button id="nav-btn-login" class="text-xs bg-white text-black font-semibold px-4 py-2 rounded-xl hover:bg-neutral-200 transition">เข้าสู่ระบบ</button>`;
-            document.getElementById("nav-btn-login").onclick = () => navigateTo("auth");
-        }
+        alert("🔒 กรุณาเข้าสู่ระบบก่อนเข้าใช้งานหน้านี้ครับ");
+        window.location.href = "index.html";
     }
-    fetchAllPortfolios();
 });
 
-function fetchAllPortfolios() {
-    const q = query(collection(db, "portfolios"), where("status", "==", "approved"));
-    onSnapshot(q, (snapshot) => {
-        allPortfolios = []; snapshot.forEach(doc => { allPortfolios.push({ id: doc.id, ...doc.data() }); });
-        renderGallerySegmented(allPortfolios);
+// ================= 👤 1. USER MANAGEMENT ENGINE (ระบบสมาชิก) =================
+export function initUserManagement() {
+    const searchInput = document.getElementById("search-user"); 
+    const tableBody = document.getElementById("user-table-body"); 
+
+    if (!tableBody) return;
+
+    onSnapshot(collection(db, "users"), (snapshot) => {
+        allUsersCache = [];
+        snapshot.forEach(docSnap => {
+            const userData = { id: docSnap.id, ...docSnap.data() };
+            allUsersCache.push(userData);
+        });
+
+        const statUsersCount = document.getElementById("count-users"); 
+        if (statUsersCount) {
+            statUsersCount.innerText = snapshot.size;
+        }
+
+        applyUserFilterAndRender(searchInput ? searchInput.value : "");
+    }, (error) => {
+        console.error("Firestore users snapshot error:", error);
+    });
+
+    if (searchInput) {
+        searchInput.oninput = (e) => {
+            currentPage = 1; 
+            applyUserFilterAndRender(e.target.value);
+        };
+    }
+}
+
+function applyUserFilterAndRender(keyword) {
+    const cleanKey = keyword.toLowerCase().trim();
+    filteredUsersCache = allUsersCache.filter(user => {
+        const name = (user.name || user.username || "").toLowerCase();
+        const email = (user.email || "").toLowerCase();
+        return name.includes(cleanKey) || email.includes(cleanKey);
+    });
+    renderUserTableByPage();
+}
+
+function renderUserTableByPage() {
+    const tableBody = document.getElementById("user-table-body");
+    if (!tableBody) return;
+    tableBody.innerHTML = ""; 
+
+    const total = filteredUsersCache.length;
+    const maxPage = Math.max(1, Math.ceil(total / itemsPerPage));
+    if (currentPage > maxPage) currentPage = maxPage;
+
+    const start = (currentPage - 1) * itemsPerPage;
+    const pageItems = filteredUsersCache.slice(start, start + itemsPerPage);
+
+    pageItems.forEach(user => {
+        const tr = document.createElement("tr");
+        tr.className = "hover:bg-slate-50/50 transition-colors";
+
+        const avatarImg = user.avatar 
+            ? `<img src="${convertDriveUrl(user.avatar)}" class="w-9 h-9 rounded-full object-cover border border-slate-200" referrerpolicy="no-referrer">`
+            : `<div class="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-sm border border-slate-200 text-slate-400">👤</div>`;
+
+        const checkRole = (user.role || "").toLowerCase().trim();
+        let badge = `<span class="px-2.5 py-0.5 text-[9px] font-bold tracking-wider rounded-md bg-slate-100 text-slate-500 border border-slate-200 uppercase">Creator</span>`;
+        if (checkRole === "admin") badge = `<span class="px-2.5 py-0.5 text-[9px] font-bold tracking-wider rounded-md bg-orange-50 text-orange-600 border border-orange-200/50 uppercase">Admin</span>`;
+        if (checkRole === "dev") badge = `<span class="px-2.5 py-0.5 text-[9px] font-bold tracking-wider rounded-md bg-rose-50 text-rose-600 border border-rose-200/50 uppercase">👑 DEV</span>`;
+
+        let actions = "";
+        if (currentAdminRole === "dev" || checkRole !== "dev") {
+            actions = `
+                <button class="btn-edit-user px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-bold transition-all">⚙️ จัดการ</button>
+                <button class="btn-delete-user px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg font-bold transition-all">ลบ</button>
+            `;
+        } else {
+            actions = `<span class="text-[10px] text-slate-400 italic font-medium">🔒 PROTECTED</span>`;
+        }
+
+        tr.innerHTML = `
+            <td class="py-4 px-4 flex items-center space-x-3">
+                ${avatarImg}
+                <div>
+                    <p class="font-bold text-slate-800">${user.name || "Anonymous"}</p>
+                    <p class="text-[10px] text-slate-400">${user.email || "-"}</p>
+                </div>
+            </td>
+            <td class="py-4 px-4">
+                <p class="text-slate-600 font-medium">📞 ${user.phone || "-"}</p>
+                <p class="text-slate-400">💬 ${user.line || "-"}</p>
+            </td>
+            <td class="py-4 px-4">${badge}</td>
+            <td class="py-4 px-4 text-right space-x-1">${actions}</td>
+        `;
+
+        const btnEdit = tr.querySelector(".btn-edit-user");
+        if (btnEdit) {
+            btnEdit.onclick = () => {
+                currentEditingUid = user.id; 
+                if(document.getElementById("edit-user-name")) document.getElementById("edit-user-name").value = user.name || "";
+                if(document.getElementById("edit-user-role")) document.getElementById("edit-user-role").value = checkRole || "user";
+                if(document.getElementById("edit-user-phone")) document.getElementById("edit-user-phone").value = user.phone || "";
+                if(document.getElementById("edit-user-line")) document.getElementById("edit-user-line").value = user.line || "";
+
+                const userModal = document.getElementById("modal-edit-user");
+                if (userModal) userModal.classList.remove("hidden");
+            };
+        }
+
+        const btnDel = tr.querySelector(".btn-delete-user");
+        if (btnDel) {
+            btnDel.onclick = async () => {
+                if (currentAdminRole !== "dev" && checkRole === "dev") { alert("⚠️ สิทธิ์ไม่เพียงพอในการลบไอดีผู้พัฒนาระบบ"); return; }
+                if (confirm(`คุณต้องการลบรายชื่อสมาชิก [ ${user.name} ] ออกจากระบบถาวรใช่หรือไม่?`)) {
+                    try { await deleteDoc(doc(db, "users", user.id)); alert("🗑️ ลบข้อมูลเรียบร้อย"); } catch (err) { alert(err.message); }
+                }
+            };
+        }
+
+        tableBody.appendChild(tr);
     });
 }
 
-function renderGallerySegmented(items) {
-    const categories = [
-        { id: "Graphic & Photo", gridId: "grid-graphic" },
-        { id: "Video Editor", gridId: "grid-video" },
-        { id: "Motion / 3D", gridId: "grid-motion" }
-    ];
+export function initUserModalEvents() {
+    const userModal = document.getElementById("modal-edit-user");
+    const btnClose = document.getElementById("btn-close-user-modal");
+    const btnCancel = document.getElementById("btn-cancel-user-modal");
+    const editForm = document.getElementById("form-update-user");
 
-    categories.forEach(cat => {
-        const grid = document.getElementById(cat.gridId);
-        if (!grid) return;
-        grid.innerHTML = "";
+    const closeModal = () => { if(userModal) userModal.classList.add("hidden"); };
+
+    if(btnClose) btnClose.onclick = closeModal;
+    if(btnCancel) btnCancel.onclick = closeModal;
+
+    if(editForm) {
+        editForm.onsubmit = async (e) => {
+            e.preventDefault();
+            if(!currentEditingUid) return;
+
+            const uName = document.getElementById("edit-user-name").value.trim();
+            const uRole = document.getElementById("edit-user-role").value;
+            const uPhone = document.getElementById("edit-user-phone").value.trim();
+            const uLine = document.getElementById("edit-user-line").value.trim();
+
+            if(uRole === "dev" && currentAdminRole !== "dev") {
+                alert("⚠️ สิทธิ์ไม่เพียงพอ: บัญชีระดับแอดมินธรรมดา ไม่สามารถแต่งตั้งผู้อื่นเป็น DEV ได้");
+                return;
+            }
+
+            try {
+                await updateDoc(doc(db, "users", currentEditingUid), {
+                    name: uName,
+                    role: uRole,
+                    phone: uPhone,
+                    line: uLine
+                });
+
+                alert("✨ อัปเดตข้อมูลและสิทธิ์ของสมาชิกสำเร็จเรียบร้อย!");
+                closeModal(); 
+            } catch(error) {
+                console.error("Error updating user info: ", error);
+                alert("เกิดข้อผิดพลาดในการบันทึกข้อมูล: " + error.message);
+            }
+        };
+    }
+}
+
+// ================= 📂 2. PORTFOLIO APPROVAL ENGINE (ระบบตรวจงาน) =================
+export function fetchAdminPendingWorks() {
+    // ติดตามนับจำนวนสถานะผลงานบนแผงควบคุมหลัก
+    onSnapshot(collection(db, "portfolios"), (snap) => {
+        let p = 0; let a = 0;
+        snap.forEach(d => {
+            const data = d.data();
+            const s = (data.status || "").toLowerCase().trim();
+            
+            // สแกนนับเฉพาะงานที่มีสเตตัส pending และพบคำหยาบจริงเท่านั้น
+            if (s === "pending") {
+                const hasProfanity = containsProfanity(data.title) || containsProfanity(data.description);
+                if (hasProfanity) p++;
+            }
+            if (s === "approved") a++;
+        });
+        if(document.getElementById("count-pending")) document.getElementById("count-pending").innerText = p;
+        if(document.getElementById("count-approved")) document.getElementById("count-approved").innerText = a;
+    });
+
+    // ดึงผลงานรอดำเนินการมาทั้งหมด แล้วคัดกรองเฉพาะตัวที่มีถ้อยคำไม่เหมาะสมขึ้นโชว์ให้แอดมินตรวจ
+    const q = query(collection(db, "portfolios"), where("status", "==", "pending"));
+    onSnapshot(q, (snap) => {
+        const container = document.getElementById("pending-container");
+        if (!container) return;
         
-        const catItems = items.filter(item => item.category === cat.id);
-        const limitedItems = catItems.slice(0, 6);
+        const profanityWorks = [];
+        
+        snap.forEach((docSnap) => {
+            const data = docSnap.data();
+            const hasProfanityInTitle = containsProfanity(data.title);
+            const hasProfanityInDesc = containsProfanity(data.description);
+            
+            if (hasProfanityInTitle || hasProfanityInDesc) {
+                profanityWorks.push({ id: docSnap.id, ...data });
+            }
+        });
 
-        if (limitedItems.length === 0) {
-            grid.innerHTML = `<p class="text-xs text-neutral-600 italic py-6 col-span-full">ยังไม่มีผลงานในหมวดหมู่นี้...</p>`;
+        // หากไม่มีผลงานที่มีคำหยาบหลุดเข้ามาเลย หน้าจอจะแสดงข้อความปลอดภัยสีเขียว
+        if (profanityWorks.length === 0) {
+            container.innerHTML = `
+                <div class="sm:col-span-2 text-center text-slate-400 py-10 font-bold text-xs uppercase tracking-wider">
+                    ✨ All caught up! No unsafe works found.
+                </div>
+            `;
             return;
         }
-
-        limitedItems.forEach(item => {
-            grid.appendChild(createPortfolioCard(item));
-        });
-    });
-}
-
-function createPortfolioCard(item) {
-    const card = document.createElement("div");
-    card.className = "premium-card group relative overflow-hidden flex flex-col justify-between cursor-pointer";
-    
-    const isYouTube = item.image?.toLowerCase().includes("youtube.com") || item.image?.toLowerCase().includes("youtu.be");
-    const isVideo = item.category === "Video Editor" || item.category === "Motion / 3D";
-    
-    let tag = `<img src="${convertDriveUrl(item.image)}" class="w-full h-full object-cover group-hover:scale-105 transition duration-700">`;
-    if (isYouTube) {
-        let vid = item.image.includes("youtu.be/") ? item.image.split("youtu.be/")[1].split(/[?#]/)[0] : item.image.split("v=")[1]?.split("&")[0];
-        tag = `<img src="https://img.youtube.com/vi/${vid}/mqdefault.jpg" class="w-full h-full object-cover">`;
-    } else if (isVideo && !item.image.includes("drive.google.com") && (item.image.includes(".mp4") || item.image.includes(".mov"))) {
-        tag = `<video src="${item.image}" muted autoplay loop playsinline class="w-full h-full object-cover pointer-events-none"></video>`;
-    }
-    
-    const uData = cachedUsers[item.ownerId];
-    const avatarUrl = uData && uData.avatar ? convertDriveUrl(uData.avatar) : "";
-    const creatorAvatarHTML = avatarUrl 
-        ? `<img src="${avatarUrl}" class="w-5 h-5 rounded-full object-cover border border-white/20">`
-        : `<div class="w-5 h-5 rounded-full bg-neutral-800 text-[9px] flex items-center justify-center border border-white/10 text-white">👤</div>`;
-
-    // จัดการชื่อแสดงผลหน้าการ์ดให้ถูกต้องและปลอดภัย
-    let finalOwnerName = item.ownerName || "ไม่ระบุชื่อ";
-    if (uData) {
-        finalOwnerName = uData.name || uData.username || finalOwnerName;
-    }
-    if (finalOwnerName.length > 20 && finalOwnerName.match(/^[a-zA-Z0-9]+$/)) {
-        // หากชื่อยังหลุดเป็น uid ยาวๆ ให้ใช้คำเซฟๆ หรือดึงจากหน้าอีเมล
-        if (uData && uData.email) finalOwnerName = uData.email.split('@')[0];
-    }
-
-    card.innerHTML = `
-        <div class="aspect-video w-full bg-neutral-900 overflow-hidden relative border-b border-white/5">${tag}</div>
-        <div class="p-5 flex items-center justify-between space-x-2">
-            <div class="truncate flex-grow">
-                <h4 class="font-bold text-white text-sm truncate">${item.title}</h4>
-                <div onclick="window.openCreatorPopupModal(event, '${item.ownerId}')" class="flex items-center space-x-1.5 mt-1 hover:text-indigo-400 group/author transition max-w-max">
-                    ${creatorAvatarHTML}
-                    <p class="text-[11px] text-neutral-400 group-hover/author:text-indigo-400 font-medium truncate max-w-[140px]">${finalOwnerName}</p>
-                </div>
-            </div>
-            <div class="text-xs text-neutral-400 font-mono flex-shrink-0 bg-neutral-900/50 px-2 py-1 rounded-xl border border-white/5">❤️ ${item.likesCount || 0}</div>
-        </div>
-    `;
-    card.onclick = () => openPortfolioDetailModal(item);
-    return card;
-}
-
-function renderGallerySingleGrid(items) {
-    const grid = document.getElementById("grid-top-liked");
-    if (!grid) return; grid.innerHTML = "";
-    if (items.length === 0) {
-        grid.innerHTML = `<p class="text-xs text-neutral-500 italic col-span-full py-12 text-center">ไม่พบข้อมูลในหมวดหมู่นี้</p>`; return;
-    }
-    items.forEach(item => {
-        grid.appendChild(createPortfolioCard(item));
-    });
-}
-
-function filterGalleryByCategory(category) {
-    const segmentView = document.getElementById("gallery-segmented-container");
-    const singleGridView = document.getElementById("grid-top-liked");
-    
-    ["cat-all", "cat-graphic", "cat-video", "cat-motion"].forEach(id => {
-        document.getElementById(id)?.classList.remove("bg-indigo-600", "text-white");
-        document.getElementById(id)?.classList.add("text-neutral-400");
-    });
-
-    if (category === "all") {
-        document.getElementById("cat-all")?.classList.add("bg-indigo-600", "text-white");
-        segmentView.classList.remove("hidden");
-        singleGridView.classList.add("hidden");
-        renderGallerySegmented(allPortfolios);
-        return;
-    }
-
-    segmentView.classList.add("hidden");
-    singleGridView.classList.remove("hidden");
-
-    let filtered = [];
-    if (category === "graphic") {
-        document.getElementById("cat-graphic")?.classList.add("bg-indigo-600", "text-white");
-        filtered = allPortfolios.filter(item => (item.category || "").toLowerCase().includes("graphic") || (item.category || "").toLowerCase().includes("photo"));
-    } else if (category === "video") {
-        document.getElementById("cat-video")?.classList.add("bg-indigo-600", "text-white");
-        filtered = allPortfolios.filter(item => (item.category || "").toLowerCase().includes("video"));
-    } else if (category === "motion") {
-        document.getElementById("cat-motion")?.classList.add("bg-indigo-600", "text-white");
-        filtered = allPortfolios.filter(item => (item.category || "").toLowerCase().includes("motion") || (item.category || "").toLowerCase().includes("3d"));
-    }
-    renderGallerySingleGrid(filtered);
-}
-
-async function openPortfolioDetailModal(item) {
-    if (activeCommentUnsubscribe) activeCommentUnsubscribe();
-    resetReplyState();
-    
-    let ownerAvatar = ""; let phone = "-", line = "-", other = "-";
-    let facebook = "", instagram = "", tiktok = "";
-    let liveOwnerName = item.ownerName || "ไม่ระบุชื่อ";
-    
-    const uDoc = await getDoc(doc(db, "users", item.ownerId));
-    if (uDoc.exists()) {
-        const uData = uDoc.data(); ownerAvatar = uData.avatar || "";
-        phone = uData.phone || "-"; line = uData.line || "-"; other = uData.other || "-";
-        facebook = uData.facebook || ""; instagram = uData.instagram || ""; tiktok = uData.tiktok || "";
-        liveOwnerName = uData.name || uData.username || liveOwnerName;
-    }
-
-    document.getElementById("md-view-title").innerText = item.title;
-    document.getElementById("md-view-category-display").innerText = item.category || "ทั่วไป";
-    document.getElementById("md-creator-profile-name").innerText = liveOwnerName;
-    document.getElementById("md-view-likes-count").innerText = item.likesCount || 0;
-    
-    const phoneEl = document.getElementById("md-contact-phone");
-    const lineEl = document.getElementById("md-contact-line");
-    const otherEl = document.getElementById("md-contact-other");
-    
-    phoneEl.innerText = phone;
-    phoneEl.className = phone !== "-" ? "truncate font-mono text-[11px] font-bold tracking-wide text-amber-400" : "truncate text-neutral-600 font-mono text-[10px]";
-    
-    lineEl.innerText = line;
-    lineEl.className = line !== "-" ? "truncate font-sans text-[11px] font-bold tracking-wide text-emerald-400" : "truncate text-neutral-600 font-sans text-[10px]";
-    
-    otherEl.innerText = other;
-    otherEl.className = other !== "-" ? "truncate font-sans text-[11px] font-medium text-neutral-200" : "truncate text-neutral-600 font-sans text-[10px]";
-
-    const fbEl = document.getElementById("md-link-facebook");
-    const igEl = document.getElementById("md-link-instagram");
-    const ttEl = document.getElementById("md-link-tiktok");
-
-    if(facebook && facebook.trim() !== "") { fbEl.href = facebook; fbEl.innerText = extractSocialUsername(facebook, "facebook"); fbEl.className = "text-[10px] text-blue-400 font-black hover:text-blue-300 transition duration-300 underline tracking-wide drop-shadow-[0_0_4px_rgba(59,130,246,0.4)] text-center truncate w-full"; }
-    else { fbEl.href = "javascript:void(0)"; fbEl.innerText = "-"; fbEl.className = "text-[10px] text-neutral-600 font-medium cursor-default text-center truncate w-full"; }
-
-    if(instagram && instagram.trim() !== "") { igEl.href = instagram; igEl.innerText = extractSocialUsername(instagram, "instagram"); igEl.className = "text-[10px] text-rose-400 font-black hover:text-rose-300 transition duration-300 underline tracking-wide drop-shadow-[0_0_4px_rgba(244,63,94,0.4)] text-center truncate w-full"; }
-    else { igEl.href = "javascript:void(0)"; igEl.innerText = "-"; igEl.className = "text-[10px] text-neutral-600 font-medium cursor-default text-center truncate w-full"; }
-
-    if(tiktok && tiktok.trim() !== "") { ttEl.href = tiktok; ttEl.innerText = extractSocialUsername(tiktok, "tiktok"); ttEl.className = "text-[10px] text-cyan-400 font-black hover:text-cyan-300 transition duration-300 underline tracking-wide drop-shadow-[0_0_4px_rgba(34,211,238,0.4)] text-center truncate w-full"; }
-    else { ttEl.href = "javascript:void(0)"; ttEl.innerText = "-"; ttEl.className = "text-[10px] text-neutral-600 font-medium cursor-default text-center truncate w-full"; }
-
-    const avBox = document.getElementById("md-user-avatar-placeholder");
-    if (avBox) avBox.innerHTML = ownerAvatar ? `<img src="${convertDriveUrl(ownerAvatar)}" class="w-full h-full object-cover rounded-xl">` : "👤";
-
-    const mediaContainer = document.getElementById("media-display-container");
-    if (mediaContainer) {
-        const url = item.image || "";
-        const isVideoCategory = item.category === "Video Editor" || item.category === "Motion / 3D";
-        if (url.includes("youtube.com") || url.includes("youtu.be")) {
-            let vid = url.includes("youtu.be/") ? url.split("youtu.be/")[1].split(/[?#]/)[0] : url.split("v=")[1]?.split("&")[0];
-            mediaContainer.innerHTML = `<iframe src="https://www.youtube.com/embed/${vid}" class="w-full h-full max-h-[80vh] aspect-video border-0 rounded-2xl shadow-xl" allowfullscreen></iframe>`;
-        } else if (url.includes("drive.google.com") && isVideoCategory) {
-            mediaContainer.innerHTML = `<iframe src="${convertDriveVideoUrl(url)}" class="w-full h-full max-h-[80vh] aspect-video border-0 rounded-2xl shadow-xl" allowfullscreen></iframe>`;
-        } else if (url.includes("drive.google.com")) {
-            mediaContainer.innerHTML = `<img src="${convertDriveUrl(url)}" class="w-full h-full max-h-[80vh] object-contain rounded-2xl">`;
-        } else if (url.includes(".mp4") || url.includes(".mov")) {
-            mediaContainer.innerHTML = `<video src="${url}" controls autoplay class="w-full h-full max-h-[80vh] object-contain rounded-2xl bg-black"></video>`;
-        } else {
-            mediaContainer.innerHTML = `<img src="${convertDriveUrl(url)}" class="w-full h-full max-h-[80vh] object-contain rounded-2xl">`;
-        }
-    }
-
-    const likeIcon = document.getElementById("like-icon");
-    likeIcon.innerText = (currentUser && item.likedBy?.includes(currentUser.uid)) ? "❤️" : "🤍";
-
-    document.getElementById("btn-md-like").onclick = async () => {
-        if (!currentUser) return alert("กรุณาเข้าสู่ระบบก่อนครับ");
-        const pRef = doc(db, "portfolios", item.id);
-        const snap = await getDoc(pRef); if (!snap.exists()) return;
-        let likes = snap.data().likedBy || []; let cnt = snap.data().likesCount || 0;
-        if (likes.includes(currentUser.uid)) { likes = likes.filter(id => id !== currentUser.uid); cnt = Math.max(0, cnt - 1); } 
-        else { likes.push(currentUser.uid); cnt += 1; }
-        await updateDoc(pRef, { likedBy: likes, likesCount: cnt });
-        document.getElementById("md-view-likes-count").innerText = cnt;
-        likeIcon.innerText = likes.includes(currentUser.uid) ? "❤️" : "🤍";
-    };
-
-    const dlZone = document.getElementById("md-download-zone");
-    if (item.license === "free" && item.downloadLink) {
-        document.getElementById("btn-md-download").href = item.downloadLink; dlZone.classList.remove("hidden");
-    } else { dlZone.classList.add("hidden"); }
-
-    const list = document.getElementById("md-comments-list");
-    activeCommentUnsubscribe = onSnapshot(query(collection(db, "portfolios", item.id, "comments"), orderBy("createdAt", "asc")), (snap) => {
-        list.innerHTML = snap.empty ? `<p class="text-[11px] text-neutral-600 italic py-2">ยังไม่มีคอมเมนต์...</p>` : "";
-        const arr = []; snap.forEach(d => arr.push({ id: d.id, ...d.data() }));
         
-        arr.filter(c => !c.parentId).forEach(parent => {
-            let tagHTML = "";
-            if (parent.userId === item.ownerId) tagHTML = `<span class="ml-1.5 text-[9px] px-1.5 py-0.5 bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 rounded font-bold">ผู้เขียน</span>`;
-            else if (parent.role === "admin") tagHTML = `<span class="ml-1.5 text-[9px] px-1.5 py-0.5 bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded font-bold">ผู้ดูแลระบบ</span>`;
+        container.innerHTML = "";
 
-            let deleteMenuHTML = "";
-            const isMyComment = currentUser && parent.userId === currentUser.uid;
-            const isPostOwner = currentUser && item.ownerId === currentUser.uid;
-            const isSystemAdmin = userData && userData.role === "admin";
-
-            if (isMyComment || isPostOwner || isSystemAdmin) {
-                deleteMenuHTML = `
-                    <div class="relative self-start">
-                        <button onclick="window.toggleCommentMenu(event, '${parent.id}')" class="text-neutral-500 hover:text-neutral-300 text-xs px-2 py-0.5 rounded hover:bg-white/5 transition">⋮</button>
-                        <div id="menu-dropdown-${parent.id}" class="comment-menu-dropdown hidden absolute right-0 top-full mt-1 bg-neutral-950 border border-white/10 rounded-xl shadow-2xl py-1 z-30 min-w-[80px]">
-                            <button onclick="window.deleteCommentAction('${item.id}', '${parent.id}')" class="w-full text-left px-3 py-1.5 text-[11px] text-rose-400 hover:bg-rose-500/10 transition">ลบ</button>
-                        </div>
-                    </div>
-                `;
-            }
-
-            const pDiv = document.createElement("div");
-            pDiv.className = "space-y-1.5 border-b border-white/[0.02] pb-3";
+        profanityWorks.forEach((data) => {
+            const id = data.id;
             
-            const childReplies = arr.filter(r => r.parentId === parent.id);
-            let repliesToggleBtnHTML = "";
-            if (childReplies.length > 0) repliesToggleBtnHTML = `<button id="btn-toggle-replies-${parent.id}" onclick="window.toggleRepliesVisibility('${parent.id}')" class="text-[10px] text-neutral-500 hover:text-indigo-400 ml-9 block mt-1 transition">💬 ดูข้อความตอบกลับเพิ่มเติม (${childReplies.length})</button>`;
+            let rawImg = data.image || data.imgLink || data.coverUrl || "";
+            if (!rawImg && data.likedBy) {
+                rawImg = data.likedBy.image || "";
+            }
+            
+            const img = convertDriveUrl(rawImg) || "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=500";
+            
+            let displayCategory = data.category || "General";
+            if (displayCategory === "Graphics & Design" || displayCategory === "Graphics") displayCategory = "Graphic Design";
+            if (displayCategory === "Video & Animation" || displayCategory === "Video") displayCategory = "Video Editor";
+            if (displayCategory === "3D" || displayCategory === "Motion" || displayCategory === "Motion Graphic") displayCategory = "Motion Graphic / 3D";
 
-            pDiv.innerHTML = `
-                <div class="flex items-start space-x-2.5 bg-neutral-900/20 p-2.5 rounded-xl border border-white/[0.01] hover:border-white/5 transition group relative">
-                    <div class="w-7 h-7 rounded-full overflow-hidden bg-neutral-800 flex-shrink-0">${parent.userAvatar ? `<img src="${convertDriveUrl(parent.userAvatar)}" class="w-full h-full object-cover">` : '👤'}</div>
-                    <div class="flex-grow min-w-0">
-                        <div class="flex items-center justify-between">
-                            <span class="font-bold text-neutral-300 text-[11px] flex items-center">${parent.userName} ${tagHTML}</span>
-                            <div class="flex items-center space-x-2">
-                                <button class="btn-rep text-[10px] text-indigo-400/80 hover:text-indigo-400 opacity-0 group-hover:opacity-100 transition" data-id="${parent.id}" data-name="${parent.userName}">ตอบกลับ</button>
-                                ${deleteMenuHTML}
-                            </div>
+            const div = document.createElement("div");
+            div.className = "bg-white border border-rose-200 bg-rose-50/5 rounded-2xl p-4 space-y-3 shadow-xs flex flex-col justify-between";
+            
+            div.innerHTML = `
+                <button type="button" class="btn-view-details block text-left w-full space-y-3 group focus:outline-none">
+                    <div class="aspect-video bg-slate-900 rounded-xl overflow-hidden relative border border-slate-200/40 group-hover:opacity-90 transition-opacity">
+                        <img src="${img}" referrerpolicy="no-referrer" class="w-full h-full object-cover">
+                        <span class="absolute top-2 left-2 text-[9px] font-black bg-amber-500 text-white px-2 py-0.5 rounded-md uppercase tracking-wider">${displayCategory}</span>
+                        <div class="absolute inset-0 bg-slate-950/20 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                            <span class="bg-white/90 text-slate-800 text-[11px] font-bold px-3 py-1.5 rounded-xl shadow-xs">⚠️ ตรวจสอบคำหยาบ</span>
                         </div>
-                        <p class="text-neutral-400 text-xs break-words mt-0.5">${parent.text}</p>
                     </div>
+                    <div>
+                        <h4 class="font-bold text-slate-800 text-xs truncate group-hover:text-orange-500 transition-colors">${data.title || "Untitled Work"}</h4>
+                        <p class="text-[10px] text-slate-400 truncate mt-0.5">โดยครีเอเตอร์: <span class="text-slate-600 font-semibold">${data.ownerName || "Unknown"}</span></p>
+                    </div>
+                </button>
+                <div class="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100">
+                    <button type="button" class="btn-adm-approve py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded-xl transition-all shadow-xs">✓ ปล่อยผ่าน</button>
+                    <button type="button" class="btn-adm-reject py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 text-[11px] font-bold rounded-xl border border-rose-200/40 transition-all">✕ ปฏิเสธ</button>
                 </div>
-                ${repliesToggleBtnHTML}
-                <div id="replies-container-${parent.id}" class="replies pl-7 space-y-2 hidden"></div>
             `;
-            
-            pDiv.querySelector(".btn-rep").onclick = (e) => setReplyState(e.target.dataset.id, e.target.dataset.name);
-            const rContainer = pDiv.querySelector(".replies");
-            
-            childReplies.forEach(reply => {
-                let rTagHTML = "";
-                if (reply.userId === item.ownerId) rTagHTML = `<span class="ml-1 text-[8px] px-1 bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 rounded font-bold">ผู้เขียน</span>`;
-                else if (reply.role === "admin") rTagHTML = `<span class="ml-1 text-[8px] px-1 bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded font-bold">ผู้ดูแลระบบ</span>`;
 
-                let rDeleteMenuHTML = "";
-                if (currentUser && reply.userId === currentUser.uid || isPostOwner || isSystemAdmin) {
-                    rDeleteMenuHTML = `
-                        <div class="relative">
-                            <button onclick="window.toggleCommentMenu(event, '${reply.id}')" class="text-neutral-600 hover:text-neutral-400 text-[10px] px-1.5 py-0.5 rounded hover:bg-white/5">⋮</button>
-                            <div id="menu-dropdown-${reply.id}" class="comment-menu-dropdown hidden absolute right-0 top-full mt-1 bg-neutral-950 border border-white/10 rounded-xl shadow-2xl py-0.5 z-30 min-w-[70px]">
-                                <button onclick="window.deleteCommentAction('${item.id}', '${reply.id}')" class="w-full text-left px-2.5 py-1 text-[10px] text-rose-400 hover:bg-rose-500/10 transition">ลบ</button>
-                            </div>
-                        </div>
-                    `;
-                }
+            // 👁️ คลิกดูรายละเอียดเชิงลึกของชิ้นงาน
+            div.querySelector(".btn-view-details").onclick = (e) => {
+                e.preventDefault();
+                if(document.getElementById("view-port-image")) document.getElementById("view-port-image").src = img;
+                if(document.getElementById("view-port-category")) document.getElementById("view-port-category").innerText = displayCategory;
+                if(document.getElementById("view-port-owner")) document.getElementById("view-port-owner").innerText = data.ownerName || "ไม่ระบุชื่อ";
+                if(document.getElementById("view-port-title")) document.getElementById("view-port-title").innerText = data.title || "Untitled Work";
+                if(document.getElementById("view-port-desc")) document.getElementById("view-port-desc").innerText = data.description || "ครีเอเตอร์ไม่ได้ระบุรายละเอียดเพิ่มเติมเอาไว้...";
 
-                const rDiv = document.createElement("div");
-                rDiv.className = "flex items-start space-x-2 bg-neutral-950/40 p-2.5 border-l-2 border-indigo-500/30 pl-3 rounded-r-xl group/reply";
-                rDiv.innerHTML = `
-                    <div class="w-6 h-6 rounded-full overflow-hidden flex-shrink-0 bg-neutral-800">${reply.userAvatar ? `<img src="${convertDriveUrl(reply.userAvatar)}" class="w-full h-full object-cover">` : '👤'}</div>
-                    <div class="min-w-0 flex-grow">
-                        <div class="flex items-center justify-between">
-                            <span class="font-bold text-[10px] text-neutral-300 flex items-center">${reply.userName} ${rTagHTML}</span>
-                            ${rDeleteMenuHTML}
-                        </div>
-                        <p class="text-neutral-400 text-xs break-words mt-0.5">${reply.text}</p>
-                    </div>
-                `;
-                rContainer.appendChild(rDiv);
-            });
-            list.appendChild(pDiv);
+                const portModal = document.getElementById("modal-view-portfolio");
+                if (portModal) portModal.classList.remove("hidden");
+            };
+
+            // ปุ่มปล่อยผ่าน (แอดมินอนุมัติชิ้นงานคำหยาบต้องสงสัยนี้)
+            div.querySelector(".btn-adm-approve").onclick = (e) => { 
+                e.preventDefault(); 
+                updateStatus(id, "approved"); 
+            };
+            
+            // ปุ่มปฏิเสธ (ดีดกลับเป็นสเตตัส rejected งานไม่หาย สมาชิกไปแก้ในหน้าโปรไฟล์ตัวเองได้)
+            div.querySelector(".btn-adm-reject").onclick = (e) => { 
+                e.preventDefault(); 
+                updateStatus(id, "rejected"); 
+            };
+
+            container.appendChild(div);
         });
+    }, (error) => {
+        console.error("Firestore portfolios snapshot error:", error);
     });
+}
 
-    const emojiToggleBtn = document.getElementById("btn-emoji-toggle");
-    const emojiPicker = document.getElementById("md-emoji-picker");
-    const commentInputText = document.getElementById("input-md-comment-text");
-
-    if (emojiToggleBtn && emojiPicker) {
-        emojiToggleBtn.onclick = (e) => { e.stopPropagation(); emojiPicker.classList.toggle("hidden"); };
-        emojiPicker.querySelectorAll(".emoji-item").forEach(emItem => {
-            emItem.onclick = (e) => { if (commentInputText) { commentInputText.value += e.target.innerText; commentInputText.focus(); } emojiPicker.classList.add("hidden"); };
-        });
+// ⚙️ ฟังก์ชันอัปเดตสถานะงาน: บันทึกข้อมูลแบบปลอดภัย ไร้กังวลเรื่องงานหลุดหรือสูญหายจาก Cloud Firestore
+async function updateStatus(id, s) {
+    if(!confirm(`ต้องการเปลี่ยนสถานะงานนี้เป็น: [ ${s.toUpperCase()} ] ใช่ไหม?`)) return;
+    try {
+        if (s === "approved") {
+            await updateDoc(doc(db, "portfolios", id), { 
+                status: "approved",
+                "likedBy.status": "approved"
+            });
+            alert("ดำเนินการอนุมัติและปล่อยผ่านผลงานชิ้นนี้สำเร็จแล้วครับ");
+        } else if (s === "rejected") {
+            await updateDoc(doc(db, "portfolios", id), { 
+                status: "rejected",
+                "likedBy.status": "rejected"
+            });
+            alert("ปฏิเสธการอนุมัติเรียบร้อย (ระบบส่งแจ้งเตือนกลับไปยังหน้าจัดการของครีเอเตอร์แล้วครับ)");
+        }
+    } catch (err) { 
+        console.error("Update Status Error: ", err);
+        alert("เกิดข้อผิดพลาด: " + err.message); 
     }
-
-    document.getElementById("form-md-comment").onsubmit = async (e) => {
-        e.preventDefault(); if (!currentUser) return alert("กรุณาเข้าสู่ระบบก่อนครับ");
-        const ip = document.getElementById("input-md-comment-text"); if (!ip.value.trim()) return;
-        
-        await addDoc(collection(db, "portfolios", item.id, "comments"), { 
-            text: ip.value.trim(), userId: currentUser.uid, userName: userData?.name || currentUser.email.split('@')[0], 
-            userAvatar: userData?.avatar || "", role: userData?.role || "user", createdAt: new Date().toISOString(), parentId: currentReplyParentId || null 
-        });
-        ip.value = ""; resetReplyState();
-    };
-
-    document.getElementById("modal-portfolio-detail").classList.remove("hidden");
 }
 
-function setReplyState(id, name) { currentReplyParentId = id; document.getElementById("reply-target-name").innerText = name; document.getElementById("reply-status-bar").classList.remove("hidden"); }
-function resetReplyState() { currentReplyParentId = null; document.getElementById("reply-status-bar").classList.add("hidden"); }
-function closePortfolioDetailModal() { if (activeCommentUnsubscribe) activeCommentUnsubscribe(); document.getElementById("media-display-container").innerHTML = ""; document.getElementById("modal-portfolio-detail").classList.add("hidden"); }
+// 🌟 ฟังก์ชันจัดการเปิด-ปิดหน้าต่าง Pop-up ส่องผลงาน
+function initPortfolioModalEvents() {
+    const portModal = document.getElementById("modal-view-portfolio");
+    const btnClose = document.getElementById("btn-close-port-modal");
+    const btnCancel = document.getElementById("btn-cancel-port-modal");
 
-const bindClick = (id, cb) => { const el = document.getElementById(id); if (el) el.onclick = cb; };
-bindClick("btn-nav-home", () => navigateTo("gallery"));
-bindClick("btn-open-profile-modal", () => openProfileModal(currentUser));
-bindClick("btn-close-profile-bg", () => document.getElementById("modal-profile-update").classList.add("hidden"));
-bindClick("btn-close-profile-x", () => document.getElementById("modal-profile-update").classList.add("hidden"));
-bindClick("btn-close-detail-bg", () => closePortfolioDetailModal());
-bindClick("btn-close-detail-x", () => closePortfolioDetailModal());
-bindClick("btn-close-edit-bg", () => document.getElementById("modal-portfolio-edit").classList.add("hidden"));
-bindClick("btn-close-edit-x", () => document.getElementById("modal-portfolio-edit").classList.add("hidden"));
-bindClick("btn-cancel-reply", () => resetReplyState());
-bindClick("btn-close-creator-bg", () => document.getElementById("modal-creator-popup").classList.add("hidden"));
-bindClick("btn-close-creator-x", () => document.getElementById("modal-creator-popup").classList.add("hidden"));
+    if(!portModal) return;
 
-bindClick("cat-all", () => filterGalleryByCategory('all'));
-bindClick("cat-graphic", () => filterGalleryByCategory('graphic'));
-bindClick("cat-video", () => filterGalleryByCategory('video'));
-bindClick("cat-motion", () => filterGalleryByCategory('motion'));
+    const closePortModal = () => { portModal.classList.add("hidden"); };
 
-const formAuth = document.getElementById("form-auth");
-if (formAuth) {
-    formAuth.onsubmit = async (e) => {
-        e.preventDefault(); const em = document.getElementById("input-username").value; const pa = document.getElementById("input-password").value;
+    if(btnClose) btnClose.onclick = closePortModal;
+    if(btnCancel) btnCancel.onclick = closePortModal;
+}
+
+// ================= 🟢 3. ONLINE STAFF MONITOR =================
+export function initOnlineStaffMonitor(currentUid) {
+    const listArea = document.getElementById("staff-monitor-list");
+    if (!listArea) return;
+
+    const updateMyStatus = async () => {
         try {
-            if (authMode === "login") { await signInWithEmailAndPassword(auth, em, pa); } 
-            else {
-                const cred = await createUserWithEmailAndPassword(auth, em, pa);
-                await setDoc(doc(db, "users", cred.user.uid), { name: em.split('@')[0], email: em, role: "user", phone: "", line: "", facebook: "", instagram: "", tiktok: "", other: "", avatar: "" });
-            }
-            navigateTo("gallery");
-        } catch (err) { alert(err.message); }
+            await updateDoc(doc(db, "users", currentUid), {
+                lastActive: new Date().getTime()
+            });
+        } catch (e) { console.error("Active Update Failed:", e); }
     };
+
+    updateMyStatus();
+    setInterval(updateMyStatus, 30000); 
+
+    onSnapshot(collection(db, "users"), (snapshot) => {
+        listArea.innerHTML = "";
+        const now = new Date().getTime();
+        let onlineCount = 0;
+
+        snapshot.forEach((docSnap) => {
+            const user = docSnap.data();
+            const checkRole = (user.role || "").toLowerCase().trim();
+            
+            if ((checkRole === "admin" || checkRole === "dev") && user.lastActive && (now - user.lastActive < 120000)) {
+                onlineCount++;
+                
+                const item = document.createElement("div");
+                item.className = "flex items-center justify-between bg-slate-50 border border-slate-200 p-2.5 rounded-xl";
+                
+                let roleTag = (checkRole === "dev")
+                    ? `<span class="text-[8px] bg-rose-50 text-rose-600 border border-rose-200/50 px-1.5 py-0.5 rounded font-black">👑 DEV</span>`
+                    : `<span class="text-[8px] bg-orange-50 text-orange-600 border border-orange-200/50 px-1.5 py-0.5 rounded font-bold">ADMIN</span>`;
+
+                const avatarImg = user.avatar 
+                    ? `<img src="${convertDriveUrl(user.avatar)}" class="w-6 h-6 rounded-full object-cover border border-slate-200" referrerpolicy="no-referrer">`
+                    : `<div class="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[10px] text-slate-500 font-bold">👤</div>`;
+
+                item.innerHTML = `
+                    <div class="flex items-center space-x-2 min-w-0">
+                        ${avatarImg}
+                        <p class="font-bold text-slate-700 truncate text-[11px]">${user.name || "Staff Node"}</p>
+                    </div>
+                    ${roleTag}
+                `;
+                listArea.appendChild(item);
+            }
+        });
+
+        if (onlineCount === 0) {
+            listArea.innerHTML = `<div class="text-center py-4 text-slate-400 text-[11px] italic">No other staff online.</div>`;
+        }
+    });
 }
-
-bindClick("btn-toggle-auth", () => {
-    authMode = authMode === "login" ? "register" : "login";
-    document.getElementById("auth-header-title").innerText = authMode === "login" ? "เข้าสู่ระบบ" : "สมัครสมาชิกใหม่";
-    document.getElementById("btn-toggle-auth").innerText = authMode === "login" ? "ยังไม่มีบัญชี? สมัครใหม่ที่นี่" : "มีบัญชีอยู่แล้ว? เข้าสู่ระบบ";
-});
-
-bindClick("btn-google-auth", async () => { try { await signInWithPopup(auth, new GoogleAuthProvider()); navigateTo("gallery"); } catch (err) { alert(err.message); } });
-navigateTo("gallery");
