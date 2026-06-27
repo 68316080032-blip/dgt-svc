@@ -1,434 +1,373 @@
-// admin.js
+// app.js - ฉบับเปิด-ปิด เมนูหลังบ้านตามสิทธิ์ของบทบาท Role ในระบบผู้ใช้งาน
 import { db, auth } from "./firebase-config.js";
-import { collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { collection, query, where, onSnapshot, doc, getDoc, updateDoc, addDoc, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-// 🌟 นำเข้าฟังก์ชันและระบบสแกนคำหยาบจาก utils.js ของคุณ
-import { convertDriveUrl, containsProfanity } from "./utils.js"; 
+import { convertDriveUrl, convertDriveVideoUrl } from "./utils.js";
 
-let allUsersCache = [];       
-let filteredUsersCache = [];  
-let currentPage = 1;          
-const itemsPerPage = 5; 
-let currentAdminRole = "user"; 
-let currentEditingUid = ""; 
+// Global Live States
+let activePostId = null;
+let currentUserId = null;
+let currentUserName = "Anonymous";
+let currentUserAvatar = "https://cdn-icons-png.flaticon.com/512/149/149071.png";
+let commentUnsubscribe = null;
 
-export function setGlobalAdminRole(role) {
-    currentAdminRole = (role || "").toLowerCase().trim();
-}
+let expandState = {
+    "Graphic Design": false,
+    "Video Editor": false,
+    "Motion Graphic / 3D": false
+};
 
-// 🌟 สั่งให้ระบบผื่อ Event เตรียมพร้อมใช้งาน Modal ทั้งหมดทันทีที่เปิดหน้าเว็บสำเร็จ
-document.addEventListener("DOMContentLoaded", () => {
-    initUserModalEvents();
-    initPortfolioModalEvents(); 
-});
-
-// ================= 🔐 SECURITY GATE =================
+// 🛡️ ตรวจสอบสถานะผู้ใช้งาน และ สิทธิ์เข้าถึงหน้าแรกปกติ
 onAuthStateChanged(auth, async (user) => {
+    const adminLinkElement = document.getElementById("admin-link");
+    
     if (user) {
+        currentUserId = user.uid;
         try {
             const userDoc = await getDoc(doc(db, "users", user.uid));
             if (userDoc.exists()) {
                 const uData = userDoc.data();
-                const userRole = (uData.role || "").toLowerCase().trim();
+                currentUserName = uData.name || uData.displayName || user.email;
+                currentUserAvatar = uData.avatarUrl || uData.avatar || "https://cdn-icons-png.flaticon.com/512/149/149071.png";
                 
-                if (userRole === "admin" || userRole === "dev") {
-                    setGlobalAdminRole(userRole);
-                    
-                    initUserManagement();
-                    fetchAdminPendingWorks();
-                    initOnlineStaffMonitor(user.uid);
-                } else {
-                    alert("🔒 ปฏิเสธการเข้าถึง: คุณไม่มีสิทธิ์เข้าใช้งานระบบหลังบ้าน");
-                    window.location.href = "index.html";
+                // 🔐 ตรวจสอบบทบาท: ถ้าเป็น admin หรือ dev ให้แสดงเมนูหลังบ้านแอดมิน
+                const userRole = (uData.role || "").toLowerCase().trim();
+                if (adminLinkElement) {
+                    if (userRole === "admin" || userRole === "dev") {
+                        adminLinkElement.classList.remove("hidden"); 
+                    } else {
+                        adminLinkElement.classList.add("hidden");    
+                    }
                 }
-            } else {
-                alert("🔒 ไม่พบข้อมูลโปรไฟล์ของคุณในระบบหลัก");
-                window.location.href = "index.html";
             }
-        } catch (e) {
-            console.error("Security gate error:", e);
-            window.location.href = "index.html";
+        } catch (e) { 
+            console.error("Error setting user context & role check:", e); 
         }
     } else {
-        alert("🔒 กรุณาเข้าสู่ระบบก่อนเข้าใช้งานหน้านี้ครับ");
-        window.location.href = "index.html";
+        currentUserId = null;
+        currentUserName = "Anonymous";
+        currentUserAvatar = "https://cdn-icons-png.flaticon.com/512/149/149071.png";
+        
+        // ถ้าไม่ได้ล็อกอิน ให้ซ่อนปุ่มเมนูหลังบ้านแอดมินเสมอ
+        if (adminLinkElement) adminLinkElement.classList.add("hidden");
     }
 });
 
-// ================= 👤 1. USER MANAGEMENT ENGINE (ระบบสมาชิก) =================
-export function initUserManagement() {
-    const searchInput = document.getElementById("search-user"); 
-    const tableBody = document.getElementById("user-table-body"); 
+// ================= 📂 1. REALTIME GALLERY ENGINE =================
+function initGalleryStream() {
+    const grids = {
+        "Graphic Design": document.getElementById("grid-graphic"),
+        "Video Editor": document.getElementById("grid-video"),
+        "Motion Graphic / 3D": document.getElementById("grid-motion")
+    };
 
-    if (!tableBody) return;
+    if (!grids["Graphic Design"] || !grids["Video Editor"] || !grids["Motion Graphic / 3D"]) return;
 
-    onSnapshot(collection(db, "users"), (snapshot) => {
-        allUsersCache = [];
-        snapshot.forEach(docSnap => {
-            const userData = { id: docSnap.id, ...docSnap.data() };
-            allUsersCache.push(userData);
+    const q = query(collection(db, "portfolios"), where("status", "==", "approved"));
+
+    onSnapshot(q, (snapshot) => {
+        let lists = { "Graphic Design": [], "Video Editor": [], "Motion Graphic / 3D": [] };
+
+        snapshot.forEach((docSnap) => {
+            const data = docSnap.data();
+            const category = data.category || "";
+            if (lists[category]) {
+                lists[category].push({ id: docSnap.id, ...data });
+            }
         });
 
-        const statUsersCount = document.getElementById("count-users"); 
-        if (statUsersCount) {
-            statUsersCount.innerText = snapshot.size;
-        }
+        Object.keys(lists).forEach(cat => {
+            lists[cat].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+        });
 
-        applyUserFilterAndRender(searchInput ? searchInput.value : "");
-    }, (error) => {
-        console.error("Firestore users snapshot error:", error);
+        const mapping = [
+            { key: "Graphic Design", grid: grids["Graphic Design"], btn: "btn-more-graphic", count: "count-graphic" },
+            { key: "Video Editor", grid: grids["Video Editor"], btn: "btn-more-video", count: "count-video" },
+            { key: "Motion Graphic / 3D", grid: grids["Motion Graphic / 3D"], btn: "btn-more-motion", count: "count-motion" }
+        ];
+
+        mapping.forEach(({ key, grid, btn, count }) => {
+            if (document.getElementById(count)) document.getElementById(count).innerText = lists[key].length;
+            grid.className = "flex overflow-x-auto gap-6 pb-4 pt-1 snap-x no-scrollbar";
+            renderCategoryRow(lists[key], key, grid, btn);
+        });
     });
+}
 
-    if (searchInput) {
-        searchInput.oninput = (e) => {
-            currentPage = 1; 
-            applyUserFilterAndRender(e.target.value);
-        };
+function renderCategoryRow(itemsArray, categoryName, targetGridElement, moreButtonId) {
+    targetGridElement.innerHTML = "";
+    const btnMore = document.getElementById(moreButtonId);
+
+    if (itemsArray.length === 0) {
+        targetGridElement.innerHTML = `<p class="text-xs text-slate-400 italic py-8 text-center w-full">📭 ยังไม่มีผลงานในหมวดหมู่นี้</p>`;
+        if (btnMore) btnMore.classList.add("hidden");
+        return;
     }
-}
 
-function applyUserFilterAndRender(keyword) {
-    const cleanKey = keyword.toLowerCase().trim();
-    filteredUsersCache = allUsersCache.filter(user => {
-        const name = (user.name || user.username || "").toLowerCase();
-        const email = (user.email || "").toLowerCase();
-        return name.includes(cleanKey) || email.includes(cleanKey);
-    });
-    renderUserTableByPage();
-}
-
-function renderUserTableByPage() {
-    const tableBody = document.getElementById("user-table-body");
-    if (!tableBody) return;
-    tableBody.innerHTML = ""; 
-
-    const total = filteredUsersCache.length;
-    const maxPage = Math.max(1, Math.ceil(total / itemsPerPage));
-    if (currentPage > maxPage) currentPage = maxPage;
-
-    const start = (currentPage - 1) * itemsPerPage;
-    const pageItems = filteredUsersCache.slice(start, start + itemsPerPage);
-
-    pageItems.forEach(user => {
-        const tr = document.createElement("tr");
-        tr.className = "hover:bg-slate-50/50 transition-colors";
-
-        const avatarImg = user.avatar 
-            ? `<img src="${convertDriveUrl(user.avatar)}" class="w-9 h-9 rounded-full object-cover border border-slate-200" referrerpolicy="no-referrer">`
-            : `<div class="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-sm border border-slate-200 text-slate-400">👤</div>`;
-
-        const checkRole = (user.role || "").toLowerCase().trim();
-        let badge = `<span class="px-2.5 py-0.5 text-[9px] font-bold tracking-wider rounded-md bg-slate-100 text-slate-500 border border-slate-200 uppercase">Creator</span>`;
-        if (checkRole === "admin") badge = `<span class="px-2.5 py-0.5 text-[9px] font-bold tracking-wider rounded-md bg-orange-50 text-orange-600 border border-orange-200/50 uppercase">Admin</span>`;
-        if (checkRole === "dev") badge = `<span class="px-2.5 py-0.5 text-[9px] font-bold tracking-wider rounded-md bg-rose-50 text-rose-600 border border-rose-200/50 uppercase">👑 DEV</span>`;
-
-        let actions = "";
-        if (currentAdminRole === "dev" || checkRole !== "dev") {
-            actions = `
-                <button class="btn-edit-user px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-bold transition-all">⚙️ จัดการ</button>
-                <button class="btn-delete-user px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg font-bold transition-all">ลบ</button>
-            `;
+    if (btnMore) {
+        if (itemsArray.length > 6) {
+            btnMore.classList.remove("hidden");
+            btnMore.innerText = expandState[categoryName] ? "แสดงน้อยลง ▴" : `ดูเพิ่มเติม (${itemsArray.length - 6}) ➔`;
         } else {
-            actions = `<span class="text-[10px] text-slate-400 italic font-medium">🔒 PROTECTED</span>`;
+            btnMore.classList.add("hidden");
+        }
+    }
+
+    const displayItems = expandState[categoryName] ? itemsArray : itemsArray.slice(0, 6);
+
+    displayItems.forEach((item) => {
+        const currentImg = item.imgLink || item.image || item.coverUrl || item.imageUrl || "";
+        const targetUid = item.ownerUid || item.ownerId || item.uid || item.userId;
+        const cardId = `card-${item.id}`;
+        
+        let timeDisplay = "ไม่ระบุเวลา";
+        if (item.createdAt) {
+            const dateObj = new Date(item.createdAt);
+            if (!isNaN(dateObj.getTime())) {
+                timeDisplay = dateObj.toLocaleDateString("th-TH", { day: 'numeric', month: 'short' }) + " " + dateObj.toLocaleTimeString("th-TH", { hour: '2-digit', minute:'2-digit' });
+            }
         }
 
-        tr.innerHTML = `
-            <td class="py-4 px-4 flex items-center space-x-3">
-                ${avatarImg}
-                <div>
-                    <p class="font-bold text-slate-800">${user.name || "Anonymous"}</p>
-                    <p class="text-[10px] text-slate-400">${user.email || "-"}</p>
+        const card = document.createElement("div");
+        card.id = cardId;
+        card.className = "premium-card rounded-2xl overflow-hidden cursor-pointer flex flex-col justify-between p-3 space-y-3 flex-shrink-0 w-[290px] snap-start bg-white border border-slate-100 shadow-xs";
+        card.innerHTML = `
+            <div class="relative aspect-video bg-slate-900 rounded-xl overflow-hidden shrink-0 section-media">
+                <img src="${convertDriveUrl(currentImg)}" referrerpolicy="no-referrer" class="w-full h-full object-cover transition-transform duration-500 hover:scale-105" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=600';">
+                <span class="absolute bottom-2 right-2 bg-slate-950/70 backdrop-blur-xs text-[8px] text-slate-300 px-2 py-0.5 rounded font-mono font-medium tracking-tight">${timeDisplay}</span>
+            </div>
+            <div class="space-y-2 flex-grow flex flex-col justify-between">
+                <div class="section-content">
+                    <h4 class="text-xs font-bold text-slate-800 line-clamp-1">${item.title || "Untitled Work"}</h4>
+                    <p class="text-[10px] text-slate-400 line-clamp-2 mt-0.5 leading-relaxed">${item.description || "คลิกเพื่อดูข้อมูลผลงาน..."}</p>
                 </div>
-            </td>
-            <td class="py-4 px-4">
-                <p class="text-slate-600 font-medium">📞 ${user.phone || "-"}</p>
-                <p class="text-slate-400">💬 ${user.line || "-"}</p>
-            </td>
-            <td class="py-4 px-4">${badge}</td>
-            <td class="py-4 px-4 text-right space-x-1">${actions}</td>
+                <div class="flex items-center justify-between border-t border-slate-100 pt-2 text-[10px]">
+                    <div class="flex items-center space-x-2 truncate max-w-[75%] creator-profile-btn group/profile p-1 rounded-lg hover:bg-orange-50 transition-all">
+                        <div class="w-5 h-5 rounded-full overflow-hidden bg-slate-200 shrink-0 border border-slate-100 placeholder-avatar">
+                            <img src="https://cdn-icons-png.flaticon.com/512/149/149071.png" class="w-full h-full object-cover">
+                        </div>
+                        <span class="text-slate-500 font-medium truncate">By <span class="text-slate-700 font-bold group-hover/profile:text-orange-600 name-display">${item.ownerName || "Creator"}</span></span>
+                    </div>
+                    <span class="text-rose-500 font-bold shrink-0">❤️ ${item.likedBy?.likesCount || item.likes || 0}</span>
+                </div>
+            </div>
         `;
 
-        const btnEdit = tr.querySelector(".btn-edit-user");
-        if (btnEdit) {
-            btnEdit.onclick = () => {
-                currentEditingUid = user.id; 
-                if(document.getElementById("edit-user-name")) document.getElementById("edit-user-name").value = user.name || "";
-                if(document.getElementById("edit-user-role")) document.getElementById("edit-user-role").value = checkRole || "user";
-                if(document.getElementById("edit-user-phone")) document.getElementById("edit-user-phone").value = user.phone || "";
-                if(document.getElementById("edit-user-line")) document.getElementById("edit-user-line").value = user.line || "";
-
-                const userModal = document.getElementById("modal-edit-user");
-                if (userModal) userModal.classList.remove("hidden");
-            };
-        }
-
-        const btnDel = tr.querySelector(".btn-delete-user");
-        if (btnDel) {
-            btnDel.onclick = async () => {
-                if (currentAdminRole !== "dev" && checkRole === "dev") { alert("⚠️ สิทธิ์ไม่เพียงพอในการลบไอดีผู้พัฒนาระบบ"); return; }
-                if (confirm(`คุณต้องการลบรายชื่อสมาชิก [ ${user.name} ] ออกจากระบบถาวรใช่หรือไม่?`)) {
-                    try { await deleteDoc(doc(db, "users", user.id)); alert("🗑️ ลบข้อมูลเรียบร้อย"); } catch (err) { alert(err.message); }
+        if (targetUid) {
+            getDoc(doc(db, "users", targetUid)).then((userDoc) => {
+                if (userDoc.exists()) {
+                    const uData = userDoc.data();
+                    const liveName = uData.name || uData.displayName || item.ownerName || "Creator";
+                    const liveAvatar = uData.avatarUrl || uData.avatar || "https://cdn-icons-png.flaticon.com/512/149/149071.png";
+                    
+                    const element = document.getElementById(cardId);
+                    if (element) {
+                        element.querySelector(".name-display").innerText = liveName;
+                        element.querySelector(".placeholder-avatar").innerHTML = `<img src="${liveAvatar}" class="w-full h-full object-cover" onerror="this.src='https://cdn-icons-png.flaticon.com/512/149/149071.png'">`;
+                    }
                 }
-            };
+            }).catch(e => console.error(e));
         }
 
-        tableBody.appendChild(tr);
-    });
-}
-
-export function initUserModalEvents() {
-    const userModal = document.getElementById("modal-edit-user");
-    const btnClose = document.getElementById("btn-close-user-modal");
-    const btnCancel = document.getElementById("btn-cancel-user-modal");
-    const editForm = document.getElementById("form-update-user");
-
-    const closeModal = () => { if(userModal) userModal.classList.add("hidden"); };
-
-    if(btnClose) btnClose.onclick = closeModal;
-    if(btnCancel) btnCancel.onclick = closeModal;
-
-    if(editForm) {
-        editForm.onsubmit = async (e) => {
-            e.preventDefault();
-            if(!currentEditingUid) return;
-
-            const uName = document.getElementById("edit-user-name").value.trim();
-            const uRole = document.getElementById("edit-user-role").value;
-            const uPhone = document.getElementById("edit-user-phone").value.trim();
-            const uLine = document.getElementById("edit-user-line").value.trim();
-
-            if(uRole === "dev" && currentAdminRole !== "dev") {
-                alert("⚠️ สิทธิ์ไม่เพียงพอ: บัญชีระดับแอดมินธรรมดา ไม่สามารถแต่งตั้งผู้อื่นเป็น DEV ได้");
-                return;
-            }
-
-            try {
-                await updateDoc(doc(db, "users", currentEditingUid), {
-                    name: uName,
-                    role: uRole,
-                    phone: uPhone,
-                    line: uLine
-                });
-
-                alert("✨ อัปเดตข้อมูลและสิทธิ์ของสมาชิกสำเร็จเรียบร้อย!");
-                closeModal(); 
-            } catch(error) {
-                console.error("Error updating user info: ", error);
-                alert("เกิดข้อผิดพลาดในการบันทึกข้อมูล: " + error.message);
-            }
+        card.querySelector(".section-media").onclick = (e) => { e.stopPropagation(); openPortfolioDetailModal(item); };
+        card.querySelector(".section-content").onclick = (e) => { e.stopPropagation(); openPortfolioDetailModal(item); };
+        
+        card.querySelector(".creator-profile-btn").onclick = (e) => { 
+            e.stopPropagation(); 
+            openCreatorContactModal(targetUid, item.ownerName); 
         };
-    }
+
+        targetGridElement.appendChild(card);
+    });
 }
 
-// ================= 📂 2. PORTFOLIO APPROVAL ENGINE (ระบบตรวจงาน) =================
-export function fetchAdminPendingWorks() {
-    // ติดตามนับจำนวนสถานะผลงานบนแผงควบคุมหลัก
-    onSnapshot(collection(db, "portfolios"), (snap) => {
-        let p = 0; let a = 0;
-        snap.forEach(d => {
-            const data = d.data();
-            const s = (data.status || "").toLowerCase().trim();
-            
-            // สแกนนับเฉพาะงานที่มีสเตตัส pending และพบคำหยาบจริงเท่านั้น
-            if (s === "pending") {
-                const hasProfanity = containsProfanity(data.title) || containsProfanity(data.description);
-                if (hasProfanity) p++;
-            }
-            if (s === "approved") a++;
-        });
-        if(document.getElementById("count-pending")) document.getElementById("count-pending").innerText = p;
-        if(document.getElementById("count-approved")) document.getElementById("count-approved").innerText = a;
-    });
+// ================= 👤 2. POP-UP MODAL แสดงช่องทางติดต่อ =================
+async function openCreatorContactModal(uid, fallbackName) {
+    const contactModal = document.getElementById("creator-contact-modal");
+    const popName = document.getElementById("contact-pop-name");
+    const popPhone = document.getElementById("contact-pop-phone");
+    const popLine = document.getElementById("contact-pop-line");
+    const popAvatarZone = document.getElementById("contact-pop-avatar");
 
-    // ดึงผลงานรอดำเนินการมาทั้งหมด แล้วคัดกรองเฉพาะตัวที่มีถ้อยคำไม่เหมาะสมขึ้นโชว์ให้แอดมินตรวจ
-    const q = query(collection(db, "portfolios"), where("status", "==", "pending"));
-    onSnapshot(q, (snap) => {
-        const container = document.getElementById("pending-container");
-        if (!container) return;
-        
-        const profanityWorks = [];
-        
-        snap.forEach((docSnap) => {
-            const data = docSnap.data();
-            const hasProfanityInTitle = containsProfanity(data.title);
-            const hasProfanityInDesc = containsProfanity(data.description);
-            
-            if (hasProfanityInTitle || hasProfanityInDesc) {
-                profanityWorks.push({ id: docSnap.id, ...data });
-            }
-        });
+    if (!contactModal) return;
 
-        // หากไม่มีผลงานที่มีคำหยาบหลุดเข้ามาเลย หน้าจอจะแสดงข้อความปลอดภัยสีเขียว
-        if (profanityWorks.length === 0) {
-            container.innerHTML = `
-                <div class="sm:col-span-2 text-center text-slate-400 py-10 font-bold text-xs uppercase tracking-wider">
-                    ✨ All caught up! No unsafe works found.
-                </div>
-            `;
+    if (popName) popName.innerText = fallbackName || "กำลังโหลด...";
+    if (popPhone) popPhone.innerText = "กำลังโหลด...";
+    if (popLine) popLine.innerText = "กำลังโหลด...";
+    if (popAvatarZone) popAvatarZone.innerHTML = `<img src="https://cdn-icons-png.flaticon.com/512/149/149071.png" class="w-full h-full object-cover">`;
+
+    if (uid) {
+        try {
+            const userDoc = await getDoc(doc(db, "users", uid));
+            if (userDoc.exists()) {
+                const uData = userDoc.data();
+                if (popName) popName.innerText = uData.name || uData.displayName || fallbackName || "Creator";
+                if (popPhone) popPhone.innerText = uData.phone || uData.tel || "ไม่มีข้อมูลติดต่อโทรศัพท์";
+                if (popLine) popLine.innerText = uData.line || uData.lineId || "ไม่มีข้อมูลไอดี Line";
+                
+                const userAvatar = uData.avatarUrl || uData.avatar || "https://cdn-icons-png.flaticon.com/512/149/149071.png";
+                if (popAvatarZone) {
+                    popAvatarZone.innerHTML = `<img src="${userAvatar}" class="w-full h-full object-cover" onerror="this.src='https://cdn-icons-png.flaticon.com/512/149/149071.png'">`;
+                }
+            } else {
+                if (popPhone) popPhone.innerText = "ไม่พบโปรไฟล์ในฐานข้อมูล";
+                if (popLine) popLine.innerText = "ไม่พบโปรไฟล์ในฐานข้อมูล";
+            }
+        } catch (err) {
+            console.error("Error retrieving user contact details:", err);
+            if (popPhone) popPhone.innerText = "เกิดข้อผิดพลาดในการโหลด";
+            if (popLine) popLine.innerText = "เกิดข้อผิดพลาดในการโหลด";
+        }
+    }
+
+    contactModal.classList.remove("hidden");
+}
+
+// ================= 🖼️ 3. POP-UP MODAL แสดงรายละเอียดชิ้นงาน และคอมเมนต์ปกติ =================
+async function openPortfolioDetailModal(item) {
+    activePostId = item.id;
+    const modal = document.getElementById("portfolio-modal");
+    const modalImg = document.getElementById("modal-img");
+    const modalVideo = document.getElementById("modal-video");
+    if (!modal) return;
+
+    const mediaLink = item.imgLink || item.image || item.coverUrl || item.imageUrl || "";
+    if (mediaLink.includes(".mp4") || mediaLink.includes("drive.google.com/file/d/") || mediaLink.includes("youtube.com")) {
+        modalImg.classList.add("hidden");
+        modalVideo.classList.remove("hidden");
+        modalVideo.src = convertDriveVideoUrl(mediaLink);
+    } else {
+        modalVideo.classList.add("hidden"); modalVideo.src = "";
+        modalImg.classList.remove("hidden"); modalImg.src = convertDriveUrl(mediaLink);
+    }
+
+    document.getElementById("modal-category").innerText = item.category || "GENERAL";
+    document.getElementById("modal-title").innerText = item.title || "Untitled";
+    document.getElementById("modal-desc").innerText = item.description || "No description provided.";
+    document.getElementById("modal-like-count").innerText = item.likedBy?.likesCount || item.likes || 0;
+
+    const targetUid = item.ownerUid || item.ownerId || item.uid || item.userId;
+    initCommentStream(item.id);
+    modal.classList.remove("hidden");
+}
+
+// ================= 💬 4. COMMENT SYSTEM ENGINE =================
+function initCommentStream(postId) {
+    if (commentUnsubscribe) commentUnsubscribe();
+    const container = document.getElementById("modal-comments-container");
+    const countText = document.getElementById("modal-comment-count");
+    if (!container) return;
+
+    const q = query(collection(db, "portfolios", postId, "comments"), orderBy("createdAt", "asc"));
+    commentUnsubscribe = onSnapshot(q, (snapshot) => {
+        container.innerHTML = "";
+        if (countText) countText.innerText = snapshot.size;
+
+        if (snapshot.empty) {
+            container.innerHTML = `<p class="text-[10px] text-slate-400 italic py-2 text-center">ยังไม่มีความคิดเห็น มาร่วมพิมพ์ทักทายเป็นคนแรกกัน!</p>`;
             return;
         }
-        
-        container.innerHTML = "";
 
-        profanityWorks.forEach((data) => {
-            const id = data.id;
-            
-            let rawImg = data.image || data.imgLink || data.coverUrl || "";
-            if (!rawImg && data.likedBy) {
-                rawImg = data.likedBy.image || "";
-            }
-            
-            const img = convertDriveUrl(rawImg) || "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=500";
-            
-            let displayCategory = data.category || "General";
-            if (displayCategory === "Graphics & Design" || displayCategory === "Graphics") displayCategory = "Graphic Design";
-            if (displayCategory === "Video & Animation" || displayCategory === "Video") displayCategory = "Video Editor";
-            if (displayCategory === "3D" || displayCategory === "Motion" || displayCategory === "Motion Graphic") displayCategory = "Motion Graphic / 3D";
+        snapshot.forEach(docSnap => {
+            const c = docSnap.data();
+            const commentAuthor = c.ownerName || c.userName || c.name || "ไม่ระบุชื่อ";
+            const commentAvatar = c.ownerAvatar || c.avatarUrl || "https://cdn-icons-png.flaticon.com/512/149/149071.png";
+            const commenterUid = c.ownerId || c.uid || null;
 
             const div = document.createElement("div");
-            div.className = "bg-white border border-rose-200 bg-rose-50/5 rounded-2xl p-4 space-y-3 shadow-xs flex flex-col justify-between";
-            
+            div.className = "bg-white p-2.5 rounded-xl border border-slate-200/50 flex items-start space-x-3 shadow-2xs text-left";
             div.innerHTML = `
-                <button type="button" class="btn-view-details block text-left w-full space-y-3 group focus:outline-none">
-                    <div class="aspect-video bg-slate-900 rounded-xl overflow-hidden relative border border-slate-200/40 group-hover:opacity-90 transition-opacity">
-                        <img src="${img}" referrerpolicy="no-referrer" class="w-full h-full object-cover">
-                        <span class="absolute top-2 left-2 text-[9px] font-black bg-amber-500 text-white px-2 py-0.5 rounded-md uppercase tracking-wider">${displayCategory}</span>
-                        <div class="absolute inset-0 bg-slate-950/20 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                            <span class="bg-white/90 text-slate-800 text-[11px] font-bold px-3 py-1.5 rounded-xl shadow-xs">⚠️ ตรวจสอบคำหยาบ</span>
-                        </div>
+                <img src="${commentAvatar}" class="w-6 h-6 rounded-full object-cover shrink-0 border border-slate-100 cursor-pointer hover:ring-2 hover:ring-orange-500/50 comment-avatar-btn" onerror="this.src='https://cdn-icons-png.flaticon.com/512/149/149071.png';">
+                <div class="flex-grow min-w-0">
+                    <div class="flex items-center justify-between">
+                        <span class="font-bold text-slate-800 text-[11px] truncate cursor-pointer hover:text-orange-600 comment-author-btn">${commentAuthor}</span>
+                        <span class="text-[9px] text-slate-400 shrink-0">${c.createdAt ? new Date(c.createdAt).toLocaleDateString("th-TH") : ""}</span>
                     </div>
-                    <div>
-                        <h4 class="font-bold text-slate-800 text-xs truncate group-hover:text-orange-500 transition-colors">${data.title || "Untitled Work"}</h4>
-                        <p class="text-[10px] text-slate-400 truncate mt-0.5">โดยครีเอเตอร์: <span class="text-slate-600 font-semibold">${data.ownerName || "Unknown"}</span></p>
-                    </div>
-                </button>
-                <div class="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100">
-                    <button type="button" class="btn-adm-approve py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded-xl transition-all shadow-xs">✓ ปล่อยผ่าน</button>
-                    <button type="button" class="btn-adm-reject py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 text-[11px] font-bold rounded-xl border border-rose-200/40 transition-all">✕ ปฏิเสธ</button>
+                    <p class="text-slate-600 text-xs mt-0.5 whitespace-pre-wrap">${c.text || c.comment || ""}</p>
                 </div>
             `;
 
-            // 👁️ คลิกดูรายละเอียดเชิงลึกของชิ้นงาน
-            div.querySelector(".btn-view-details").onclick = (e) => {
-                e.preventDefault();
-                if(document.getElementById("view-port-image")) document.getElementById("view-port-image").src = img;
-                if(document.getElementById("view-port-category")) document.getElementById("view-port-category").innerText = displayCategory;
-                if(document.getElementById("view-port-owner")) document.getElementById("view-port-owner").innerText = data.ownerName || "ไม่ระบุชื่อ";
-                if(document.getElementById("view-port-title")) document.getElementById("view-port-title").innerText = data.title || "Untitled Work";
-                if(document.getElementById("view-port-desc")) document.getElementById("view-port-desc").innerText = data.description || "ครีเอเตอร์ไม่ได้ระบุรายละเอียดเพิ่มเติมเอาไว้...";
-
-                const portModal = document.getElementById("modal-view-portfolio");
-                if (portModal) portModal.classList.remove("hidden");
-            };
-
-            // ปุ่มปล่อยผ่าน (แอดมินอนุมัติชิ้นงานคำหยาบต้องสงสัยนี้)
-            div.querySelector(".btn-adm-approve").onclick = (e) => { 
-                e.preventDefault(); 
-                updateStatus(id, "approved"); 
-            };
-            
-            // ปุ่มปฏิเสธ (ดีดกลับเป็นสเตตัส rejected งานไม่หาย สมาชิกไปแก้ในหน้าโปรไฟล์ตัวเองได้)
-            div.querySelector(".btn-adm-reject").onclick = (e) => { 
-                e.preventDefault(); 
-                updateStatus(id, "rejected"); 
-            };
+            if (commenterUid) {
+                div.querySelector(".comment-avatar-btn").onclick = () => openCreatorContactModal(commenterUid, commentAuthor);
+                div.querySelector(".comment-author-btn").onclick = () => openCreatorContactModal(commenterUid, commentAuthor);
+            }
 
             container.appendChild(div);
         });
-    }, (error) => {
-        console.error("Firestore portfolios snapshot error:", error);
+        container.scrollTop = container.scrollHeight;
     });
 }
 
-// ⚙️ ฟังก์ชันอัปเดตสถานะงาน: บันทึกข้อมูลแบบปลอดภัย ไร้กังวลเรื่องงานหลุดหรือสูญหายจาก Cloud Firestore
-async function updateStatus(id, s) {
-    if(!confirm(`ต้องการเปลี่ยนสถานะงานนี้เป็น: [ ${s.toUpperCase()} ] ใช่ไหม?`)) return;
-    try {
-        if (s === "approved") {
-            await updateDoc(doc(db, "portfolios", id), { 
-                status: "approved",
-                "likedBy.status": "approved"
-            });
-            alert("ดำเนินการอนุมัติและปล่อยผ่านผลงานชิ้นนี้สำเร็จแล้วครับ");
-        } else if (s === "rejected") {
-            await updateDoc(doc(db, "portfolios", id), { 
-                status: "rejected",
-                "likedBy.status": "rejected"
-            });
-            alert("ปฏิเสธการอนุมัติเรียบร้อย (ระบบส่งแจ้งเตือนกลับไปยังหน้าจัดการของครีเอเตอร์แล้วครับ)");
-        }
-    } catch (err) { 
-        console.error("Update Status Error: ", err);
-        alert("เกิดข้อผิดพลาด: " + err.message); 
+// ================= 🛠️ 5. EVENT LISTENERS MOUNT ZONE =================
+document.addEventListener("DOMContentLoaded", () => {
+    const closeBtn = document.getElementById("modal-close-btn");
+    if (closeBtn) {
+        closeBtn.onclick = () => {
+            document.getElementById("portfolio-modal").classList.add("hidden");
+            document.getElementById("modal-video").src = "";
+            if (commentUnsubscribe) commentUnsubscribe();
+        };
     }
-}
 
-// 🌟 ฟังก์ชันจัดการเปิด-ปิดหน้าต่าง Pop-up ส่องผลงาน
-function initPortfolioModalEvents() {
-    const portModal = document.getElementById("modal-view-portfolio");
-    const btnClose = document.getElementById("btn-close-port-modal");
-    const btnCancel = document.getElementById("btn-cancel-port-modal");
+    const closeContactBtn = document.getElementById("contact-modal-close-btn");
+    if (closeContactBtn) {
+        closeContactBtn.onclick = () => {
+            document.getElementById("creator-contact-modal").classList.add("hidden");
+        };
+    }
 
-    if(!portModal) return;
+    const likeBtn = document.getElementById("modal-like-btn");
+    if (likeBtn) {
+        likeBtn.onclick = async () => {
+            if (!activePostId) return;
+            try {
+                const freshDoc = await getDoc(doc(db, "portfolios", activePostId));
+                if (freshDoc.exists()) {
+                    let currentLikes = freshDoc.data().likedBy?.likesCount || freshDoc.data().likes || 0;
+                    let nextCount = currentLikes + 1;
+                    await updateDoc(doc(db, "portfolios", activePostId), { "likedBy.likesCount": nextCount, "likes": nextCount });
+                    document.getElementById("modal-like-count").innerText = nextCount;
+                }
+            } catch (err) { console.error("Error setting love reaction:", err); }
+        };
+    }
 
-    const closePortModal = () => { portModal.classList.add("hidden"); };
+    const commentForm = document.getElementById("modal-comment-form");
+    if (commentForm) {
+        commentForm.onsubmit = async (e) => {
+            e.preventDefault();
+            const input = document.getElementById("modal-comment-input");
+            if (!activePostId || !input.value.trim()) return;
+            if (!currentUserId) return alert("🔒 กรุณาเข้าสู่ระบบก่อนที่จะร่วมส่งความคิดเห็นครับ");
 
-    if(btnClose) btnClose.onclick = closePortModal;
-    if(btnCancel) btnCancel.onclick = closePortModal;
-}
+            try {
+                await addDoc(collection(db, "portfolios", activePostId, "comments"), {
+                    ownerId: currentUserId,
+                    ownerName: currentUserName,
+                    ownerAvatar: currentUserAvatar,
+                    text: input.value.trim(),
+                    createdAt: new Date().toISOString()
+                });
+                input.value = "";
+            } catch (err) { alert("ล้มเหลวในการส่งคอมเมนต์: " + err.message); }
+        };
+    }
 
-// ================= 🟢 3. ONLINE STAFF MONITOR =================
-export function initOnlineStaffMonitor(currentUid) {
-    const listArea = document.getElementById("staff-monitor-list");
-    if (!listArea) return;
+    const viewButtons = [
+        { id: "btn-more-graphic", key: "Graphic Design" },
+        { id: "btn-more-video", key: "Video Editor" },
+        { id: "btn-more-motion", key: "Motion Graphic / 3D" }
+    ];
 
-    const updateMyStatus = async () => {
-        try {
-            await updateDoc(doc(db, "users", currentUid), {
-                lastActive: new Date().getTime()
-            });
-        } catch (e) { console.error("Active Update Failed:", e); }
-    };
-
-    updateMyStatus();
-    setInterval(updateMyStatus, 30000); 
-
-    onSnapshot(collection(db, "users"), (snapshot) => {
-        listArea.innerHTML = "";
-        const now = new Date().getTime();
-        let onlineCount = 0;
-
-        snapshot.forEach((docSnap) => {
-            const user = docSnap.data();
-            const checkRole = (user.role || "").toLowerCase().trim();
-            
-            if ((checkRole === "admin" || checkRole === "dev") && user.lastActive && (now - user.lastActive < 120000)) {
-                onlineCount++;
-                
-                const item = document.createElement("div");
-                item.className = "flex items-center justify-between bg-slate-50 border border-slate-200 p-2.5 rounded-xl";
-                
-                let roleTag = (checkRole === "dev")
-                    ? `<span class="text-[8px] bg-rose-50 text-rose-600 border border-rose-200/50 px-1.5 py-0.5 rounded font-black">👑 DEV</span>`
-                    : `<span class="text-[8px] bg-orange-50 text-orange-600 border border-orange-200/50 px-1.5 py-0.5 rounded font-bold">ADMIN</span>`;
-
-                const avatarImg = user.avatar 
-                    ? `<img src="${convertDriveUrl(user.avatar)}" class="w-6 h-6 rounded-full object-cover border border-slate-200" referrerpolicy="no-referrer">`
-                    : `<div class="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[10px] text-slate-500 font-bold">👤</div>`;
-
-                item.innerHTML = `
-                    <div class="flex items-center space-x-2 min-w-0">
-                        ${avatarImg}
-                        <p class="font-bold text-slate-700 truncate text-[11px]">${user.name || "Staff Node"}</p>
-                    </div>
-                    ${roleTag}
-                `;
-                listArea.appendChild(item);
-            }
-        });
-
-        if (onlineCount === 0) {
-            listArea.innerHTML = `<div class="text-center py-4 text-slate-400 text-[11px] italic">No other staff online.</div>`;
+    viewButtons.forEach(({ id, key }) => {
+        const btn = document.getElementById(id);
+        if (btn) {
+            btn.onclick = () => {
+                expandState[key] = !expandState[key];
+                initGalleryStream();
+            };
         }
     });
-}
+
+    initGalleryStream();
+});
