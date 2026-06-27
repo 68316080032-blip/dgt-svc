@@ -1,304 +1,188 @@
 <!DOCTYPE html>
-<html lang="th" class="scroll-smooth">
+<html lang="th">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Premium Creative Portfolio Platform</title>
+    <title>VG HUB | รวมผลงานครีเอเตอร์</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700&family=Poppins:wght@400;600;700&family=Noto+Sans+Thai:wght@400;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="./style.css">
     <style>
-        body { background-color: #050505; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: #0a0a0a; }
-        ::-webkit-scrollbar-thumb { background: #262626; border-radius: 99px; }
-        ::-webkit-scrollbar-thumb:hover { background: #404040; }
-        .premium-card {
-            background: rgba(15, 15, 15, 0.6); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 24px; transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        body {
+            font-family: 'Lato', 'Poppins', 'Noto Sans Thai', sans-serif;
         }
-        .premium-card:hover {
-            transform: translateY(-4px); border-color: rgba(99, 102, 241, 0.3); box-shadow: 0 20px 40px -15px rgba(99, 102, 241, 0.15);
+        /* ซ่อน Scrollbar ของแถวเลื่อนผลงานเพื่อความสวยงาม */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
         }
     </style>
 </head>
-<body class="text-neutral-200 min-h-screen flex flex-col justify-between">
+<body class="bg-slate-50 text-slate-800 antialiased min-h-screen flex flex-col">
 
-    <nav class="sticky top-0 z-50 bg-[#050505]/70 backdrop-blur-xl border-b border-white/5 px-6 py-4 flex items-center justify-between">
-        <div class="flex items-center space-x-3 cursor-pointer" id="btn-nav-home">
-            <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-                <span class="text-white font-black text-sm">P</span>
+    <nav class="bg-white/80 backdrop-blur-md border-b border-slate-100 sticky top-0 z-40 px-6 py-4">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <span class="text-xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-rose-500">VG HUB</span>
+                <span class="text-[10px] bg-slate-100 font-bold px-2 py-0.5 rounded-md text-slate-500 uppercase tracking-tight">Community</span>
             </div>
-            <span class="text-sm font-bold tracking-tight text-white uppercase font-mono">Creative<span class="text-indigo-400">Hub</span></span>
-        </div>
-        <div id="navbar-auth-zone" class="flex items-center space-x-3">
-            <button id="nav-btn-login" class="text-xs bg-white text-black font-semibold px-4 py-2 rounded-xl hover:bg-neutral-200 transition">เข้าสู่ระบบ</button>
+            
+            <div class="flex items-center space-x-4">
+                <a href="admin.html" id="admin-link" class="text-xs font-bold text-slate-500 hover:text-slate-800 transition-colors hidden">หลังบ้านแอดมิน</a>
+                <a href="dashboard.html" class="text-xs font-bold text-slate-600 hover:text-orange-600 transition-colors">แดชบอร์ดของฉัน</a>
+                
+                <a href="login.html" id="login-btn" class="px-4 py-2 rounded-xl bg-orange-600 hover:bg-orange-500 text-white text-xs font-bold shadow-md shadow-orange-600/10 transition-all active:scale-[0.98]">
+                    เข้าสู่ระบบ 🔑
+                </a>
+            </div>
         </div>
     </nav>
 
-    <main id="view-gallery" class="flex-grow p-6 md:p-12 max-w-7xl mx-auto w-full space-y-12">
-        <div class="space-y-4 max-w-xl">
-            <h1 class="text-3xl md:text-5xl font-black tracking-tight text-white leading-none">ศูนย์รวมผลงาน <br><span class="bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-violet-400">ระดับพรีเมียม</span></h1>
-            <p class="text-xs md:text-sm text-neutral-400 leading-relaxed">ค้นพบแรงบันดาลใจ คัดสรรและรวบรวมวิดีโอ โมชัน 3D และงานกราฟิกจากครีเอเตอร์ทั่วประเทศ</p>
-        </div>
-
-        <div class="flex flex-wrap items-center gap-2 border-b border-white/5 pb-4">
-            <button id="cat-all" class="px-4 py-2 text-xs font-medium rounded-xl text-white bg-indigo-600 transition">หน้าแรก (แยกหมวดหมู่)</button>
-            <button id="cat-graphic" class="px-4 py-2 text-xs font-medium rounded-xl text-neutral-400 hover:text-white transition">Graphic & Photo Only</button>
-            <button id="cat-video" class="px-4 py-2 text-xs font-medium rounded-xl text-neutral-400 hover:text-white transition">Video Editor Only</button>
-            <button id="cat-motion" class="px-4 py-2 text-xs font-medium rounded-xl text-neutral-400 hover:text-white transition">Motion / 3D Only</button>
-        </div>
-
-        <div id="gallery-segmented-container" class="space-y-12">
+    <header class="max-w-7xl mx-auto w-full px-6 pt-12 pb-6 text-center md:text-left">
+        <div class="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-950 rounded-3xl p-8 md:p-12 text-white relative overflow-hidden shadow-xl border border-slate-800">
+            <div class="absolute -right-10 -bottom-10 w-48 h-48 bg-orange-500/10 rounded-full blur-3xl"></div>
+            <div class="absolute right-20 top-5 w-32 h-32 bg-indigo-500/15 rounded-full blur-2xl"></div>
             
-            <div id="sect-graphic" class="space-y-4">
-                <div class="flex items-center justify-between border-l-2 border-indigo-500 pl-3">
-                    <div>
-                        <h3 class="text-lg font-bold text-white tracking-tight">Graphic & Photo</h3>
-                        <p class="text-[11px] text-neutral-500">งานออกแบบกราฟิก ภาพถ่าย และสื่อสิ่งพิมพ์สร้างสรรค์</p>
-                    </div>
-                    <button onclick="window.filterGalleryByCategory('graphic')" class="text-xs text-indigo-400 hover:text-indigo-300 font-medium transition bg-indigo-500/5 px-3 py-1.5 rounded-xl border border-indigo-500/10">ดูทั้งหมดในหมวดหมู่นี้ ↗</button>
-                </div>
-                <div id="grid-graphic" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+            <div class="max-w-xl space-y-4 relative z-10">
+                <span class="text-[10px] bg-orange-500 text-white font-extrabold px-3 py-1 rounded-full uppercase tracking-widest shadow-sm shadow-orange-500/20">Creative Space</span>
+                <h1 class="text-2xl md:text-4xl font-black tracking-tight leading-tight">ศูนย์รวมและจัดแสดง<br><span class="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-amber-300">ผลงานสุดพรีเมียม</span></h1>
+                <p class="text-xs md:text-sm text-slate-400 font-medium leading-relaxed">แพลตฟอร์มแบ่งปันแรงบันดาลใจ ค้นหาและติดต่อครีเอเตอร์สาย Graphic Design, Video Editor, 3D & Motion และ Photography ได้โดยตรง</p>
             </div>
-
-            <div id="sect-video" class="space-y-4">
-                <div class="flex items-center justify-between border-l-2 border-emerald-500 pl-3">
-                    <div>
-                        <h3 class="text-lg font-bold text-white tracking-tight">Video Editor</h3>
-                        <p class="text-[11px] text-neutral-500">งานตัดต่อวิดีโอ คอนเทนต์ คริปสั้น และภาพยนตร์</p>
-                    </div>
-                    <button onclick="window.filterGalleryByCategory('video')" class="text-xs text-emerald-400 hover:text-emerald-300 font-medium transition bg-emerald-500/5 px-3 py-1.5 rounded-xl border border-emerald-500/10">ดูทั้งหมดในหมวดหมู่นี้ ↗</button>
-                </div>
-                <div id="grid-video" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></div>
-            </div>
-
-            <div id="sect-motion" class="space-y-4">
-                <div class="flex items-center justify-between border-l-2 border-amber-500 pl-3">
-                    <div>
-                        <h3 class="text-lg font-bold text-white tracking-tight">Motion / 3D</h3>
-                        <p class="text-[11px] text-neutral-500">งานแอนิเมชัน โมชันกราฟิก และแบบจำลองสามมิติ</p>
-                    </div>
-                    <button onclick="window.filterGalleryByCategory('motion')" class="text-xs text-amber-400 hover:text-amber-300 font-medium transition bg-amber-500/5 px-3 py-1.5 rounded-xl border border-amber-500/10">ดูทั้งหมดในหมวดหมู่นี้ ↗</button>
-                </div>
-                <div id="grid-motion" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></div>
-            </div>
-
         </div>
+    </header>
 
-        <div id="grid-top-liked" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 hidden"></div>
+    <main class="max-w-7xl mx-auto w-full px-6 py-6 flex-grow space-y-12">
+        
+        <section class="space-y-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-2.5">
+                    <span class="text-lg">🎨</span>
+                    <h2 class="text-base font-black text-slate-800 tracking-tight">2D Graphic Design</h2>
+                    <span id="count-graphic" class="bg-slate-200/70 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded-full">0</span>
+                </div>
+                <button id="btn-more-graphic" class="text-xs font-bold text-orange-600 hover:text-orange-700 transition-colors hidden">ดูทั้งหมด ➔</button>
+            </div>
+            <div id="grid-graphic" class="flex overflow-x-auto gap-6 pb-4 pt-1 snap-x no-scrollbar"></div>
+        </section>
+
+        <section class="space-y-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-2.5">
+                    <span class="text-lg">💎</span>
+                    <h2 class="text-base font-black text-slate-800 tracking-tight">3D & Motion Graphics</h2>
+                    <span id="count-motion" class="bg-slate-200/70 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded-full">0</span>
+                </div>
+                <button id="btn-more-motion" class="text-xs font-bold text-orange-600 hover:text-orange-700 transition-colors hidden">ดูทั้งหมด ➔</button>
+            </div>
+            <div id="grid-motion" class="flex overflow-x-auto gap-6 pb-4 pt-1 snap-x no-scrollbar"></div>
+        </section>
+
+        <section class="space-y-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-2.5">
+                    <span class="text-lg">🎬</span>
+                    <h2 class="text-base font-black text-slate-800 tracking-tight">Video Editor</h2>
+                    <span id="count-video" class="bg-slate-200/70 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded-full">0</span>
+                </div>
+                <button id="btn-more-video" class="text-xs font-bold text-orange-600 hover:text-orange-700 transition-colors hidden">ดูทั้งหมด ➔</button>
+            </div>
+            <div id="grid-video" class="flex overflow-x-auto gap-6 pb-4 pt-1 snap-x no-scrollbar"></div>
+        </section>
+
+        <section class="space-y-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-2.5">
+                    <span class="text-lg">📸</span>
+                    <h2 class="text-base font-black text-slate-800 tracking-tight">Photography</h2>
+                    <span id="count-photography" class="bg-slate-200/70 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded-full">0</span>
+                </div>
+                <button id="btn-more-photography" class="text-xs font-bold text-orange-600 hover:text-orange-700 transition-colors hidden">ดูทั้งหมด ➔</button>
+            </div>
+            <div id="grid-photography" class="flex overflow-x-auto gap-6 pb-4 pt-1 snap-x no-scrollbar"></div>
+        </section>
+
     </main>
 
-    <main id="view-auth" class="hidden flex-grow flex items-center justify-center p-6">
-        <div class="w-full max-w-md bg-neutral-900/40 backdrop-blur-xl border border-white/5 p-8 rounded-3xl space-y-6">
-            <div class="text-center space-y-2">
-                <h2 id="auth-header-title" class="text-2xl font-bold text-white tracking-tight">เข้าสู่ระบบ</h2>
-                <p class="text-xs text-neutral-400">กรอกข้อมูลบัญชีผู้ใช้ของคุณเพื่อเข้าสู่พื้นที่ทำงาน</p>
-            </div>
-            <form id="form-auth" class="space-y-4">
-                <div class="space-y-1.5">
-                    <label class="text-[11px] font-medium uppercase tracking-wider text-neutral-400">อีเมลผู้ใช้งาน</label>
-                    <input type="email" id="input-username" required class="w-full bg-neutral-950 border border-white/5 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-indigo-500" placeholder="name@example.com">
-                </div>
-                <div class="space-y-1.5">
-                    <label class="text-[11px] font-medium uppercase tracking-wider text-neutral-400">รหัสผ่าน</label>
-                    <input type="password" id="input-password" required class="w-full bg-neutral-950 border border-white/5 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-indigo-500" placeholder="••••••••">
-                </div>
-                <button type="submit" class="w-full bg-white text-black text-xs font-bold py-3.5 rounded-xl hover:bg-neutral-200 transition">ดำเนินการต่อ</button>
-            </form>
-            <div class="relative flex py-2 items-center"><div class="flex-grow border-t border-white/5"></div><span class="flex-shrink mx-4 text-[10px] text-neutral-500 uppercase tracking-wider">หรือ</span><div class="flex-grow border-t border-white/5"></div></div>
-            <button id="btn-google-auth" class="w-full bg-neutral-950 border border-white/10 text-white text-xs font-medium py-3 rounded-xl hover:bg-neutral-900 transition flex items-center justify-center space-x-2">
-                <span>🌐</span> <span>เข้าสู่ระบบด้วย Google บัญชี</span>
-            </button>
-            <p id="btn-toggle-auth" class="text-center text-xs text-neutral-400 hover:text-indigo-400 cursor-pointer pt-2">ยังไม่มีบัญชี? สมัครสมาชิกใหม่ที่นี่</p>
-        </div>
-    </main>
+    <footer class="bg-white border-t border-slate-100 text-center py-6 mt-12 text-xs text-slate-400 font-medium">
+        <p>© 2026 VG HUB. All Rights Reserved. Create with Passion.</p>
+    </footer>
 
-    <main id="view-dashboard" class="hidden flex-grow p-6 md:p-12 max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div class="lg:col-span-1 space-y-6">
-            <div class="bg-neutral-900/40 border border-white/5 rounded-3xl p-6 flex items-center space-x-4">
-                <div id="dashboard-avatar-container" class="w-14 h-14 rounded-full bg-neutral-800 border border-white/10 overflow-hidden flex-shrink-0">⚙️</div>
-                <div class="truncate flex-grow">
-                    <h3 id="profile-username-display" class="font-bold text-white text-base truncate">-</h3>
-                    <p class="text-[10px] text-neutral-500 uppercase tracking-wider">สมาชิกครีเอเตอร์</p>
-                </div>
-                <button id="btn-open-profile-modal" class="text-[10px] bg-white/5 border border-white/5 text-neutral-300 px-2.5 py-1.5 rounded-lg hover:bg-white/10">ตั้งค่า</button>
+    <div id="portfolio-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-3xl max-w-4xl w-full h-[85vh] flex flex-col md:flex-row overflow-hidden shadow-2xl border border-slate-100">
+            <div class="w-full md:w-3/5 bg-slate-950 flex items-center justify-center relative aspect-video md:aspect-auto">
+                <img id="modal-img" src="" class="w-full h-full object-contain hidden" referrerpolicy="no-referrer">
+                <iframe id="modal-video" src="" class="w-full h-full hidden" allow="autoplay; encrypted-media" allowfullscreen></iframe>
             </div>
-
-            <div class="bg-neutral-900/40 border border-white/5 rounded-3xl p-6 space-y-4">
-                <h3 class="font-bold text-white text-sm">สร้างและเผยแพร่ผลงานใหม่</h3>
-                <form id="form-portfolio-upload" class="space-y-3.5">
-                    <div class="space-y-1">
-                        <label class="text-[10px] text-neutral-400">ชื่อหัวข้อผลงาน</label>
-                        <input type="text" id="work-title" required class="w-full bg-neutral-950 border border-white/5 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500">
+            <div class="w-full md:w-2/5 p-6 flex flex-col justify-between h-full bg-slate-50/50">
+                <div class="space-y-4 flex-grow overflow-y-auto pr-1">
+                    <div class="flex items-center justify-between">
+                        <span id="modal-category" class="text-[10px] font-bold text-orange-600 bg-orange-50 px-2.5 py-1 rounded-md border border-orange-200/40 uppercase tracking-wider">CATEGORY</span>
+                        <button id="modal-close-btn" class="w-7 h-7 bg-slate-200/70 hover:bg-slate-200 rounded-full flex items-center justify-center text-xs font-bold text-slate-500 transition-all">✕</button>
                     </div>
-                    <div class="space-y-1">
-                        <label class="text-[10px] text-neutral-400">หมวดหมู่กลุ่มงาน</label>
-                        <select id="work-category" class="w-full bg-neutral-950 border border-white/5 rounded-xl px-3.5 py-2.5 text-xs text-neutral-400">
-                            <option value="Graphic & Photo">Graphic & Photo</option>
-                            <option value="Video Editor">Video Editor</option>
-                            <option value="Motion / 3D">Motion / 3D</option>
-                        </select>
+                    <div>
+                        <h3 id="modal-title" class="text-base font-black text-slate-800 leading-snug">Post Title</h3>
+                        <p id="modal-desc" class="text-xs text-slate-500 mt-1.5 leading-relaxed whitespace-pre-wrap">Post Description...</p>
                     </div>
-                    <div class="space-y-1">
-                        <label class="text-[10px] text-neutral-400">ลิงก์สื่อหลัก (รูป / Drive วิดีโอ / YouTube)</label>
-                        <input type="url" id="work-image" required class="w-full bg-neutral-950 border border-white/5 rounded-xl px-3.5 py-2.5 text-xs text-white" placeholder="https://...">
+                    <div class="flex items-center justify-between border-t border-b border-slate-200/60 py-3">
+                        <button id="modal-like-btn" class="flex items-center space-x-2 bg-rose-50 hover:bg-rose-100/80 text-rose-600 px-3 py-1.5 rounded-xl border border-rose-200/50 text-xs font-bold transition-all">
+                            <span>❤️ ถูกใจผลงานนี้</span>
+                        </button>
+                        <span class="text-xs text-slate-500 font-bold">👍 <span id="modal-like-count">0</span> คนถูกใจ</span>
                     </div>
-                    <div class="space-y-1">
-                        <label class="text-[10px] text-neutral-400">ลิงก์ดูงานจริงภายนอก (ถ้ามี)</label>
-                        <input type="url" id="work-link" class="w-full bg-neutral-950 border border-white/5 rounded-xl px-3.5 py-2.5 text-xs text-white">
+                    <div class="space-y-2">
+                        <h4 class="text-xs font-black text-slate-700 flex items-center space-x-1.5">
+                            <span>💬 ความคิดเห็น</span>
+                            <span id="modal-comment-count" class="bg-slate-200 text-slate-600 text-[10px] px-1.5 py-0.5 rounded-full font-bold">0</span>
+                        </h4>
+                        <div id="modal-comments-container" class="space-y-2 max-h-[180px] overflow-y-auto pr-1"></div>
                     </div>
-                    <div class="space-y-1">
-                        <label class="text-[10px] text-neutral-400">การคุ้มครองลิขสิทธิ์ (License)</label>
-                        <select id="work-license" class="w-full bg-neutral-950 border border-white/5 rounded-xl px-3.5 py-2.5 text-xs text-neutral-400">
-                            <option value="copyright">🔒 มีลิขสิทธิ์ (สงวนสิทธิ์การแจกไฟล์)</option>
-                            <option value="free">✓ แจกฟรี (เปิดปุ่มดาวน์โหลดสาธารณะ)</option>
-                        </select>
-                    </div>
-                    <div class="space-y-1">
-                        <label class="text-[10px] text-neutral-400">ลิงก์ตรงสำหรับดาวน์โหลดไฟล์ (ถ้าเปิดแจกฟรี)</label>
-                        <input type="url" id="work-download-link" class="w-full bg-neutral-950 border border-white/5 rounded-xl px-3.5 py-2.5 text-xs text-white" placeholder="https://...">
-                    </div>
-                    <button type="submit" class="w-full bg-indigo-600 text-white text-xs font-bold py-3 rounded-xl hover:bg-indigo-500 shadow-lg shadow-indigo-600/20">อัปโหลดส่งตรวจสอบ</button>
+                </div>
+                <form id="modal-comment-form" class="mt-4 pt-3 border-t border-slate-200/60 flex items-center space-x-2">
+                    <input type="text" id="modal-comment-input" placeholder="พิมพ์ข้อความตอบกลับหรือคำชม..." class="flex-grow bg-white text-xs px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 shadow-2xs" required>
+                    <button type="submit" class="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow-sm shadow-orange-600/10 transition-all shrink-0">ส่ง</button>
                 </form>
             </div>
         </div>
+    </div>
 
-        <div class="lg:col-span-2 space-y-6">
-            <h2 class="text-xl font-bold text-white tracking-tight">ผลงานที่คุณเผยแพร่</h2>
-            <div id="dashboard-works-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-4"></div>
-
-            <div id="admin-approval-section" class="hidden border border-amber-500/20 bg-amber-500/[0.02] p-6 rounded-3xl space-y-4 mt-8">
-                <h3 class="font-bold text-amber-400 text-sm">👑 แผงควบคุมระบบตรวจสอบหลังบ้าน (Admin Only)</h3>
-                <div id="admin-pending-grid" class="grid grid-cols-1 gap-3"></div>
-            </div>
-        </div>
-    </main>
-
-    <div id="modal-creator-popup" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div id="btn-close-creator-bg" class="absolute inset-0 bg-black/80 backdrop-blur-md"></div>
-        <div class="relative bg-[#0d0d0d] border border-white/10 w-full max-w-sm rounded-3xl p-6 space-y-5 z-10 shadow-2xl text-center">
-            <div class="flex justify-end absolute top-4 right-4">
-                <button id="btn-close-creator-x" class="text-neutral-500 hover:text-white transition text-xs bg-white/5 w-6 h-6 rounded-full flex items-center justify-center">✕</button>
-            </div>
-            <div class="flex flex-col items-center space-y-3 pt-2">
-                <div id="pop-creator-avatar" class="w-20 h-20 rounded-full border-2 border-indigo-500 overflow-hidden bg-neutral-800 flex items-center justify-center text-3xl shadow-xl">👤</div>
-                <div>
-                    <h3 id="pop-creator-name" class="font-black text-white text-lg tracking-tight">-</h3>
-                    <p class="text-[10px] text-indigo-400 uppercase tracking-widest font-bold">Verified Creator Profile</p>
-                </div>
-            </div>
+    <div id="creator-contact-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 text-center relative space-y-4">
+            <button id="contact-modal-close-btn" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center font-bold text-sm transition-all">✕</button>
             
-            <div class="bg-black/40 border border-white/5 rounded-2xl p-3.5 text-left space-y-3.5 text-xs">
-                <div class="space-y-1.5">
-                    <p class="text-[9px] font-bold uppercase tracking-wider text-neutral-500 border-b border-white/5 pb-0.5">📇 ช่องทางหลัก</p>
-                    <div class="grid grid-cols-2 gap-2 text-[11px]">
-                        <div><span class="text-neutral-500">เบอร์โทร:</span> <span id="pop-phone" class="text-amber-400 font-mono font-bold">-</span></div>
-                        <div><span class="text-neutral-500">LINE:</span> <span id="pop-line" class="text-emerald-400 font-bold">-</span></div>
-                    </div>
-                    <div class="text-[11px] truncate"><span class="text-neutral-500">ช่องทางอื่น:</span> <span id="pop-other" class="text-neutral-300 font-medium">-</span></div>
+            <div class="pt-4 flex flex-col items-center">
+                <div id="contact-pop-avatar" class="w-24 h-24 rounded-full overflow-hidden border-4 border-orange-500/20 shadow-md flex items-center justify-center bg-slate-100 mb-3">
+                    <img src="https://cdn-icons-png.flaticon.com/512/149/149071.png" class="w-full h-full object-cover">
                 </div>
-                
-                <div class="space-y-1.5">
-                    <p class="text-[9px] font-bold uppercase tracking-wider text-neutral-500 border-b border-white/5 pb-0.5">🌐 โซเชียลมีเดีย</p>
-                    <div class="grid grid-cols-3 gap-1.5 text-center font-bold text-[10px]">
-                        <a id="pop-fb" target="_blank" href="#" class="p-1.5 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/10 truncate block">-</a>
-                        <a id="pop-ig" target="_blank" href="#" class="p-1.5 rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/10 truncate block">-</a>
-                        <a id="pop-tt" target="_blank" href="#" class="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/10 truncate block">-</a>
+                <h3 id="contact-pop-name" class="text-base font-black text-slate-800">Creator Name</h3>
+                <span class="text-[9px] bg-orange-50 text-orange-600 font-bold px-2 py-0.5 rounded-full border border-orange-200/50 mt-1 uppercase tracking-wider">Verified Member</span>
+            </div>
+
+            <hr class="border-slate-100">
+
+            <div class="space-y-2.5 text-left text-xs px-2">
+                <div class="flex items-center space-x-3 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                    <span class="text-lg">📞</span>
+                    <div>
+                        <p class="text-[10px] text-slate-400 font-medium">เบอร์โทรศัพท์ติดต่อ</p>
+                        <p id="contact-pop-phone" class="font-bold text-slate-700 mt-0.5">กำลังโหลด...</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-3 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                    <span class="text-lg">💬</span>
+                    <div>
+                        <p class="text-[10px] text-slate-400 font-medium">LINE ID</p>
+                        <p id="contact-pop-line" class="font-bold text-slate-700 mt-0.5">กำลังโหลด...</p>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <div id="modal-portfolio-detail" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div id="btn-close-detail-bg" class="absolute inset-0 bg-[#050505]/90 backdrop-blur-md"></div>
-        <div class="relative bg-[#090909] border border-white/5 w-full max-w-6xl rounded-3xl overflow-hidden shadow-2xl z-10 grid grid-cols-1 lg:grid-cols-12 h-auto max-h-[85vh]">
-            <div class="lg:col-span-7 bg-black flex items-center justify-center p-2 border-b lg:border-b-0 lg:border-r border-white/5 h-[40vh] lg:h-[85vh] relative overflow-hidden">
-                <div id="media-display-container" class="w-full h-full flex items-center justify-center"></div>
-            </div>
-            <div class="lg:col-span-5 p-6 flex flex-col justify-between overflow-y-auto h-[45vh] lg:h-[85vh] bg-[#0c0c0c] space-y-5">
-                <div class="flex items-center justify-between"><div id="md-view-license"></div><button id="btn-close-detail-x" class="w-8 h-8 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-xs text-neutral-400 hover:text-white transition">✕</button></div>
-                <div class="flex items-start justify-between space-x-4">
-                    <div class="space-y-1 min-w-0 flex-grow">
-                        <h2 id="md-view-title" class="text-xl font-black text-white tracking-tight break-words leading-tight">-</h2>
-                        <p class="text-xs text-neutral-400">หมวดหมู่: <span id="md-view-category-display" class="text-indigo-400 font-medium">-</span></p>
-                    </div>
-                    <button id="btn-md-like" class="flex items-center space-x-1.5 px-3 py-2 bg-white/5 hover:bg-white/10 rounded-xl border border-white/5 flex-shrink-0 transition"><span id="like-icon" class="text-sm">🤍</span><span id="md-view-likes-count" class="text-xs font-mono font-bold text-neutral-300">0</span></button>
-                </div>
-                <div class="bg-neutral-900/40 border border-white/5 p-4 rounded-2xl flex items-center space-x-3.5">
-                    <div id="md-creator-avatar-box" class="w-11 h-11 rounded-xl bg-gradient-to-tr from-indigo-500 to-violet-500 flex items-center justify-center text-white text-base font-bold shadow-md flex-shrink-0 overflow-hidden"><span id="md-user-avatar-placeholder">👤</span></div>
-                    <div class="min-w-0 flex-grow"><p class="text-[9px] uppercase tracking-wider text-neutral-500 font-bold">ผู้สร้างสรรค์ผลงาน</p><p id="md-creator-profile-name" class="text-sm font-bold text-white truncate">-</p></div>
-                </div>
-                <div id="md-download-zone" class="hidden bg-emerald-500/5 border border-emerald-500/10 p-3 rounded-2xl flex items-center justify-between"><p class="text-[11px] text-emerald-400 font-bold truncate">✓ ผลงานชิ้นนี้เปิดให้ดาวน์โหลดเสรี</p><a id="btn-md-download" target="_blank" href="#" class="bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs px-4 py-2 rounded-xl transition">Download</a></div>
-                
-                <div class="bg-neutral-900/40 border border-white/5 rounded-2xl p-4 space-y-4 text-xs">
-                    <div class="space-y-2">
-                        <p class="text-[9px] text-indigo-400 uppercase font-black tracking-wider border-b border-white/5 pb-1">📇 ช่องทางหลัก (Main Contact)</p>
-                        <div class="grid grid-cols-3 gap-2 text-center">
-                            <div class="bg-black/20 border border-white/[0.02] p-2 rounded-xl min-w-0"><p class="text-[8px] text-neutral-500 uppercase font-bold tracking-wider mb-0.5">PHONE</p><p id="md-contact-phone" class="truncate font-mono text-[11px] font-bold tracking-wide text-amber-400">-</p></div>
-                            <div class="bg-black/20 border border-white/[0.02] p-2 rounded-xl min-w-0"><p class="text-[8px] text-neutral-500 uppercase font-bold tracking-wider mb-0.5">LINE</p><p id="md-contact-line" class="truncate font-sans text-[11px] font-bold tracking-wide text-emerald-400">-</p></div>
-                            <div class="bg-black/20 border border-white/[0.02] p-2 rounded-xl min-w-0"><p class="text-[8px] text-neutral-500 uppercase font-bold tracking-wider mb-0.5">OTHER</p><p id="md-contact-other" class="truncate font-sans text-[11px] font-medium text-neutral-200">-</p></div>
-                        </div>
-                    </div>
-                    <div class="space-y-2">
-                        <p class="text-[9px] text-violet-400 uppercase font-black tracking-wider border-b border-white/5 pb-1">🌐 โซเชียลมีเดีย (Social Media)</p>
-                        <div class="grid grid-cols-3 gap-2 text-center">
-                            <div class="bg-black/20 border border-white/[0.02] p-2 rounded-xl flex flex-col justify-center items-center min-w-0><p class="text-[8px] text-neutral-500 uppercase font-bold tracking-wider mb-1">FACEBOOK</p><a id="md-link-facebook" target="_blank" href="#" class="transition max-w-full block font-medium truncate w-full">-</a></div>
-                            <div class="bg-black/20 border border-white/[0.02] p-2 rounded-xl flex flex-col justify-center items-center min-w-0"><p class="text-[8px] text-neutral-500 uppercase font-bold tracking-wider mb-1">INSTAGRAM</p><a id="md-link-instagram" target="_blank" href="#" class="transition max-w-full block font-medium truncate w-full">-</a></div>
-                            <div class="bg-black/20 border border-white/[0.02] p-2 rounded-xl flex flex-col justify-center items-center min-w-0"><p class="text-[8px] text-neutral-500 uppercase font-bold tracking-wider mb-1">TIKTOK</p><a id="md-link-tiktok" target="_blank" href="#" class="transition max-w-full block font-medium truncate w-full">-</a></div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="space-y-3 flex-grow flex flex-col justify-end border-t border-white/5 pt-4 relative">
-                    <div class="flex items-center justify-between"><h4 class="text-xs font-bold uppercase tracking-wider text-neutral-400">การสนทนาและความคิดเห็น</h4></div>
-                    <div id="reply-status-bar" class="hidden bg-indigo-500/10 border border-indigo-500/20 px-3 py-2 rounded-xl flex items-center justify-between text-[11px]"><span class="text-indigo-400 flex items-center gap-1.5">↩️ กำลังตอบกลับ: <span id="reply-target-name" class="font-bold text-white"></span></span><button id="btn-cancel-reply" type="button" class="text-neutral-500 hover:text-neutral-300 text-xs">ยกเลิก</button></div>
-                    <div id="md-comments-list" class="space-y-3.5 max-h-[22vh] overflow-y-auto pr-1 min-h-[60px]"></div>
-                    <form id="form-md-comment" class="flex gap-2 items-center pt-2 relative">
-                        <div class="relative flex-grow flex items-center bg-neutral-950 border border-white/10 rounded-xl focus-within:border-indigo-500 transition duration-200 shadow-inner"><input type="text" id="input-md-comment-text" required class="w-full bg-transparent pl-3.5 pr-10 py-3 text-xs text-white focus:outline-none placeholder-neutral-600" placeholder="พิมพ์ข้อความความคิดเห็นที่นี่..."><button type="button" id="btn-emoji-toggle" class="absolute right-3.5 text-neutral-500 hover:text-neutral-200 transition text-sm focus:outline-none">😀</button></div>
-                        <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-4 py-3 rounded-xl transition shadow-lg shadow-indigo-600/10 flex-shrink-0">ส่ง</button>
-                        <div id="md-emoji-picker" class="hidden absolute bottom-full mb-3 right-0 bg-neutral-900/95 border border-white/10 rounded-2xl p-2.5 grid grid-cols-6 gap-2 shadow-2xl z-50 backdrop-blur-xl max-w-[220px]"><span class="emoji-item cursor-pointer hover:scale-130 active:scale-95 transition text-base text-center p-1 hover:bg-white/5 rounded-lg">😀</span><span class="emoji-item cursor-pointer hover:scale-130 active:scale-95 transition text-base text-center p-1 hover:bg-white/5 rounded-lg">😂</span><span class="emoji-item cursor-pointer hover:scale-130 active:scale-95 transition text-base text-center p-1 hover:bg-white/5 rounded-lg">😍</span><span class="emoji-item cursor-pointer hover:scale-130 active:scale-95 transition text-base text-center p-1 hover:bg-white/5 rounded-lg">👍</span><span class="emoji-item cursor-pointer hover:scale-130 active:scale-95 transition text-base text-center p-1 hover:bg-white/5 rounded-lg">🔥</span><span class="emoji-item cursor-pointer hover:scale-130 active:scale-95 transition text-base text-center p-1 hover:bg-white/5 rounded-lg">❤️</span></div>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div id="modal-portfolio-edit" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div id="btn-close-edit-bg" class="absolute inset-0 bg-[#050505]/80 backdrop-blur-md"></div>
-        <div class="relative bg-neutral-900 border border-white/5 w-full max-w-sm rounded-3xl p-6 space-y-4 z-10">
-            <div class="flex items-center justify-between"><h3 class="font-bold text-white text-sm">แก้ไขข้อมูลผลงาน</h3><button id="btn-close-edit-x" class="text-xs text-neutral-500">✕</button></div>
-            <form id="form-portfolio-edit-submit" class="space-y-3">
-                <input type="hidden" id="edit-work-id">
-                <div class="space-y-1"><label class="text-[10px] text-neutral-400">ชื่อหัวข้อ</label><input type="text" id="edit-work-title" required class="w-full bg-neutral-950 border border-white/5 rounded-xl px-3 py-2 text-xs text-white"></div>
-                <div class="space-y-1"><label class="text-[10px] text-neutral-400">หมวดหมู่</label><select id="edit-work-category" class="w-full bg-neutral-950 border border-white/5 rounded-xl px-3 py-2 text-xs text-neutral-400"><option value="Graphic & Photo">Graphic & Photo</option><option value="Video Editor">Video Editor</option><option value="Motion / 3D">Motion / 3D</option></select></div>
-                <div class="space-y-1"><label class="text-[10px] text-neutral-400">ลิงก์สื่อหลัก</label><input type="url" id="edit-work-image" required class="w-full bg-neutral-950 border border-white/5 rounded-xl px-3 py-2 text-xs text-white"></div>
-                <div class="space-y-1"><label class="text-[10px] text-neutral-400">ลิงก์งานจริง</label><input type="url" id="edit-work-link" class="w-full bg-neutral-950 border border-white/5 rounded-xl px-3 py-2 text-xs text-white"></div>
-                <div class="space-y-1"><label class="text-[10px] text-neutral-400">ลิงก์ดาวน์โหลด</label><input type="url" id="edit-work-download-link" class="w-full bg-neutral-950 border border-white/5 rounded-xl px-3 py-2 text-xs text-white"></div>
-                <button type="submit" class="w-full bg-white text-black text-xs font-bold py-2.5 rounded-xl">บันทึกข้อมูล</button>
-            </form>
-        </div>
-    </div>
-
-    <div id="modal-profile-update" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div id="btn-close-profile-bg" class="absolute inset-0 bg-[#050505]/80 backdrop-blur-md"></div>
-        <div class="relative bg-neutral-900 border border-white/5 w-full max-w-sm rounded-3xl p-6 space-y-4 z-10 max-h-[90vh] overflow-y-auto">
-            <div class="flex items-center justify-between"><h3 class="font-bold text-white text-sm">อัปเดตข้อมูลการติดต่อ</h3><button id="btn-close-profile-x" class="text-xs text-neutral-500">✕</button></div>
-            <form id="form-profile-update" class="space-y-3">
-                <div class="space-y-1"><label class="text-[10px] text-neutral-400">ลิงก์รูปโปรไฟล์ (Avatar URL)</label><input type="url" id="db-avatar" class="w-full bg-neutral-950 border border-white/5 rounded-xl px-3 py-2 text-xs text-white"></div>
-                <div class="space-y-1"><label class="text-[10px] text-neutral-400">เบอร์โทรศัพท์</label><input type="text" id="db-phone" class="w-full bg-neutral-950 border border-white/5 rounded-xl px-3 py-2 text-xs text-white"></div>
-                <div class="space-y-1"><label class="text-[10px] text-neutral-400">LINE ID</label><input type="text" id="db-line" class="w-full bg-neutral-950 border border-white/5 rounded-xl px-3 py-2 text-xs text-white"></div>
-                <div class="space-y-1"><label class="text-[10px] text-neutral-400">Facebook Link</label><input type="url" id="db-facebook" placeholder="https://facebook.com/..." class="w-full bg-neutral-950 border border-white/5 rounded-xl px-3 py-2 text-xs text-white"></div>
-                <div class="space-y-1"><label class="text-[10px] text-neutral-400">Instagram Link</label><input type="url" id="db-instagram" placeholder="https://instagram.com/..." class="w-full bg-neutral-950 border border-white/5 rounded-xl px-3 py-2 text-xs text-white"></div>
-                <div class="space-y-1"><label class="text-[10px] text-neutral-400">TikTok Link</label><input type="url" id="db-tiktok" placeholder="https://tiktok.com/@..." class="w-full bg-neutral-950 border border-white/5 rounded-xl px-3 py-2 text-xs text-white"></div>
-                <div class="space-y-1"><label class="text-[10px] text-neutral-400">ช่องทางติดต่ออื่น</label><input type="text" id="db-other" class="w-full bg-neutral-950 border border-white/5 rounded-xl px-3 py-2 text-xs text-white"></div>
-                <button type="submit" class="w-full bg-indigo-600 text-white text-xs font-bold py-2.5 rounded-xl shadow-lg">อัปเดตฐานข้อมูล</button>
-            </form>
-        </div>
-    </div>
-
-    <footer class="border-t border-white/5 py-4 px-6 text-center text-[10px] text-neutral-500 font-mono">
-        &copy; 2026 CreativeHub. Crafted for Visual & Streaming Portfolio Automation.
-    </footer>
-
-    <script type="module" src="app.js"></script>
+    <script type="module" src="./app.js"></script>
 </body>
 </html>
