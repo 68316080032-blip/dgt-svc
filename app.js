@@ -17,12 +17,19 @@ let expandState = {
     "Motion Graphic / 3D": false
 };
 
-// 🛡️ ตรวจสอบสถานะผู้ใช้งาน และ สิทธิ์เข้าถึงหน้าแรกปกติ
+// 🛡️ ตรวจสอบสถานะผู้ใช้งาน และ สิทธิ์เข้าถึงหน้าแรกปกติ + ควบคุมปุ่มล็อกอิน/แดชบอร์ด บน Navbar
 onAuthStateChanged(auth, async (user) => {
     const adminLinkElement = document.getElementById("admin-link");
+    const loginBtnElement = document.getElementById("login-btn");
+    const dashboardLinkElement = document.getElementById("dashboard-link");
     
     if (user) {
         currentUserId = user.uid;
+        
+        // 🔄 ถ้าเข้าสู่ระบบแล้ว -> ซ่อนปุ่มเข้าสู่ระบบ และแสดงปุ่มแดชบอร์ดแทน
+        if (loginBtnElement) loginBtnElement.classList.add("hidden");
+        if (dashboardLinkElement) dashboardLinkElement.classList.remove("hidden");
+
         try {
             const userDoc = await getDoc(doc(db, "users", user.uid));
             if (userDoc.exists()) {
@@ -48,7 +55,9 @@ onAuthStateChanged(auth, async (user) => {
         currentUserName = "Anonymous";
         currentUserAvatar = "https://cdn-icons-png.flaticon.com/512/149/149071.png";
         
-        // ถ้าไม่ได้ล็อกอิน ให้ซ่อนปุ่มเมนูหลังบ้านแอดมินเสมอ
+        // 🔄 ถ้าไม่ได้ล็อกอิน -> แสดงปุ่มเข้าสู่ระบบ ซ่อนปุ่มแดชบอร์ดและแอดมินทั้งหมด
+        if (loginBtnElement) loginBtnElement.classList.remove("hidden");
+        if (dashboardLinkElement) dashboardLinkElement.classList.add("hidden");
         if (adminLinkElement) adminLinkElement.classList.add("hidden");
     }
 });
@@ -169,12 +178,27 @@ function renderCategoryRow(itemsArray, categoryName, targetGridElement, moreButt
             }).catch(e => console.error(e));
         }
 
-        card.querySelector(".section-media").onclick = (e) => { e.stopPropagation(); openPortfolioDetailModal(item); };
-        card.querySelector(".section-content").onclick = (e) => { e.stopPropagation(); openPortfolioDetailModal(item); };
-        
+        // 🛡️ ส่วนประมวลผลความปลอดภัยเมื่อมีการคลิกชิ้นงาน
+        const handleCardAction = (e, callback) => {
+            e.stopPropagation();
+            if (!currentUserId) {
+                // ถ้ายังไม่ได้เข้าสู่ระบบ -> เด้งหน้าต่างแจ้งเตือนโปร่งใสขุ่น
+                const authModal = document.getElementById("auth-guard-modal");
+                if (authModal) authModal.classList.remove("hidden");
+            } else {
+                // ถ้าเข้าสู่ระบบแล้ว -> ทำตามปกติ
+                callback();
+            }
+        };
+
+        card.querySelector(".section-media").onclick = (e) => { 
+            handleCardAction(e, () => openPortfolioDetailModal(item)); 
+        };
+        card.querySelector(".section-content").onclick = (e) => { 
+            handleCardAction(e, () => openPortfolioDetailModal(item)); 
+        };
         card.querySelector(".creator-profile-btn").onclick = (e) => { 
-            e.stopPropagation(); 
-            openCreatorContactModal(targetUid, item.ownerName); 
+            handleCardAction(e, () => openCreatorContactModal(targetUid, item.ownerName)); 
         };
 
         targetGridElement.appendChild(card);
@@ -184,12 +208,12 @@ function renderCategoryRow(itemsArray, categoryName, targetGridElement, moreButt
 // ================= 👤 2. POP-UP MODAL แสดงช่องทางติดต่อ =================
 async function openCreatorContactModal(uid, fallbackName) {
     const contactModal = document.getElementById("creator-contact-modal");
+    if (!contactModal) return;
+
     const popName = document.getElementById("contact-pop-name");
     const popPhone = document.getElementById("contact-pop-phone");
     const popLine = document.getElementById("contact-pop-line");
     const popAvatarZone = document.getElementById("contact-pop-avatar");
-
-    if (!contactModal) return;
 
     if (popName) popName.innerText = fallbackName || "กำลังโหลด...";
     if (popPhone) popPhone.innerText = "กำลังโหลด...";
@@ -246,7 +270,6 @@ async function openPortfolioDetailModal(item) {
     document.getElementById("modal-desc").innerText = item.description || "No description provided.";
     document.getElementById("modal-like-count").innerText = item.likedBy?.likesCount || item.likes || 0;
 
-    const targetUid = item.ownerUid || item.ownerId || item.uid || item.userId;
     initCommentStream(item.id);
     modal.classList.remove("hidden");
 }
@@ -313,6 +336,15 @@ document.addEventListener("DOMContentLoaded", () => {
     if (closeContactBtn) {
         closeContactBtn.onclick = () => {
             document.getElementById("creator-contact-modal").classList.add("hidden");
+        };
+    }
+
+    // 🔒 ปุ่มปิดหน้าต่างแจ้งเตือนล็อกอินแบบกระจกฝ้าขุ่น
+    const closeAuthModalBtn = document.getElementById("btn-close-auth-modal");
+    if (closeAuthModalBtn) {
+        closeAuthModalBtn.onclick = () => {
+            const authModal = document.getElementById("auth-guard-modal");
+            if (authModal) authModal.classList.add("hidden");
         };
     }
 
