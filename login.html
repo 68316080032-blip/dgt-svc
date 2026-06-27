@@ -28,8 +28,11 @@
                 <input type="email" id="login-email" placeholder="example@vghub.com" class="w-full bg-slate-50 text-xs px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all" required>
             </div>
             
-            <div class="space-y-1">
-                <label for="login-password" class="text-[11px] font-bold text-slate-500 uppercase tracking-wide">รหัสผ่าน (PASSWORD)</label>
+            <div class="space-y-1 relative">
+                <div class="flex justify-between items-center">
+                    <label for="login-password" class="text-[11px] font-bold text-slate-500 uppercase tracking-wide">รหัสผ่าน (PASSWORD)</label>
+                    <button type="button" id="btn-forgot-password-trigger" class="text-[10px] text-orange-500 font-bold hover:underline focus:outline-none">ลืมรหัสผ่าน?</button>
+                </div>
                 <input type="password" id="login-password" placeholder="••••••••" class="w-full bg-slate-50 text-xs px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all" required>
             </div>
 
@@ -55,6 +58,29 @@
         </button>
 
         <p class="text-[11px] text-slate-400 font-medium">ยังไม่เป็นสมาชิกใช่ไหม? <a href="register.html" class="text-orange-500 font-bold hover:underline">สมัครสมาชิกที่นี่</a></p>
+    </div>
+
+    <div id="modal-forgot-password" class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 hidden z-50">
+        <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl border border-slate-100 text-center space-y-4">
+            <div>
+                <h3 class="text-base font-bold text-slate-800">🔒 กู้คืนรหัสผ่าน</h3>
+                <p class="text-[11px] text-slate-400 mt-1">ระบบจะส่งลิงก์เพื่อตั้งรหัสผ่านใหม่ไปให้ที่อีเมลของคุณ</p>
+            </div>
+            <form id="form-forgot-password" class="space-y-3 text-left">
+                <div class="space-y-1">
+                    <label for="forgot-email" class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">กรอกอีเมลของคุณ (EMAIL)</label>
+                    <input type="email" id="forgot-email" placeholder="example@vghub.com" class="w-full bg-slate-50 text-xs px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-orange-500 transition-all" required>
+                </div>
+                <div class="flex space-x-2 pt-1">
+                    <button type="button" id="btn-forgot-password-close" class="flex-1 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold transition-all">
+                        ยกเลิก
+                    </button>
+                    <button type="submit" class="flex-1 py-2 rounded-xl bg-gradient-to-r from-orange-500 to-rose-500 text-white text-xs font-bold transition-all active:scale-[0.98]">
+                        ส่งลิงก์กู้คืน
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
 
     <script type="module" src="./login.js"></script>
