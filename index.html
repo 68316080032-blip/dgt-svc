@@ -10,16 +10,16 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="./style.css">
     <style>
-        body {
-            font-family: 'Lato', 'Poppins', 'Noto Sans Thai', sans-serif;
-        }
-        /* ซ่อน Scrollbar ของแถวเลื่อนผลงานเพื่อความสวยงาม */
-        .no-scrollbar::-webkit-scrollbar {
-            display: none;
-        }
-        .no-scrollbar {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
+        body { font-family: 'Lato', 'Poppins', 'Noto Sans Thai', sans-serif; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* สไตล์กระจกฝ้าระดับพรีเมียมสำหรับ Modal แจ้งเตือน */
+        .glass-prompt {
+            background: rgba(255, 255, 255, 0.4);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
         }
     </style>
 </head>
@@ -34,7 +34,7 @@
             
             <div class="flex items-center space-x-4">
                 <a href="admin.html" id="admin-link" class="text-xs font-bold text-slate-500 hover:text-slate-800 transition-colors hidden">หลังบ้านแอดมิน</a>
-                <a href="dashboard.html" class="text-xs font-bold text-slate-600 hover:text-orange-600 transition-colors">แดชบอร์ดของฉัน</a>
+                <a href="dashboard.html" id="dashboard-link" class="text-xs font-bold text-slate-600 hover:text-orange-600 transition-colors hidden">แดชบอร์ดของฉัน</a>
                 
                 <a href="login.html" id="login-btn" class="px-4 py-2 rounded-xl bg-orange-600 hover:bg-orange-500 text-white text-xs font-bold shadow-md shadow-orange-600/10 transition-all active:scale-[0.98]">
                     เข้าสู่ระบบ 🔑
@@ -57,7 +57,6 @@
     </header>
 
     <main class="max-w-7xl mx-auto w-full px-6 py-6 flex-grow space-y-12">
-        
         <section class="space-y-4">
             <div class="flex items-center justify-between">
                 <div class="flex items-center space-x-2.5">
@@ -93,19 +92,6 @@
             </div>
             <div id="grid-video" class="flex overflow-x-auto gap-6 pb-4 pt-1 snap-x no-scrollbar"></div>
         </section>
-
-        <section class="space-y-4">
-            <div class="flex items-center justify-between">
-                <div class="flex items-center space-x-2.5">
-                    <span class="text-lg">📸</span>
-                    <h2 class="text-base font-black text-slate-800 tracking-tight">Photography</h2>
-                    <span id="count-photography" class="bg-slate-200/70 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded-full">0</span>
-                </div>
-                <button id="btn-more-photography" class="text-xs font-bold text-orange-600 hover:text-orange-700 transition-colors hidden">ดูทั้งหมด ➔</button>
-            </div>
-            <div id="grid-photography" class="flex overflow-x-auto gap-6 pb-4 pt-1 snap-x no-scrollbar"></div>
-        </section>
-
     </main>
 
     <footer class="bg-white border-t border-slate-100 text-center py-6 mt-12 text-xs text-slate-400 font-medium">
@@ -150,36 +136,47 @@
         </div>
     </div>
 
-    <div id="creator-contact-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 hidden">
-        <div class="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 text-center relative space-y-4">
-            <button id="contact-modal-close-btn" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center font-bold text-sm transition-all">✕</button>
+    <div id="auth-guard-modal" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md hidden">
+        <div class="glass-prompt w-full max-w-sm rounded-[32px] p-8 text-center shadow-2xl transition-all">
+            <div class="w-16 h-16 bg-gradient-to-tr from-orange-500 to-rose-500 rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-lg shadow-orange-500/20">
+                <span class="text-3xl text-white">🔒</span>
+            </div>
+            <h3 class="text-lg font-black text-slate-800 mb-1">เข้าสู่ระบบเพื่อรับชม</h3>
+            <p class="text-xs text-slate-600 leading-relaxed mb-6">กรุณาเข้าสู่ระบบเพื่อรับชมรายละเอียดผลงานแบบพรีเมียม ร่วมพิมพ์ข้อความชื่นชม และเข้าถึงข้อมูลติดต่อครีเอเตอร์โดยตรง</p>
             
-            <div class="pt-4 flex flex-col items-center">
-                <div id="contact-pop-avatar" class="w-24 h-24 rounded-full overflow-hidden border-4 border-orange-500/20 shadow-md flex items-center justify-center bg-slate-100 mb-3">
-                    <img src="https://cdn-icons-png.flaticon.com/512/149/149071.png" class="w-full h-full object-cover">
-                </div>
-                <h3 id="contact-pop-name" class="text-base font-black text-slate-800">Creator Name</h3>
-                <span class="text-[9px] bg-orange-50 text-orange-600 font-bold px-2 py-0.5 rounded-full border border-orange-200/50 mt-1 uppercase tracking-wider">Verified Member</span>
+            <div class="space-y-2">
+                <a href="login.html" class="block w-full py-3 bg-gradient-to-r from-orange-500 to-rose-500 text-white text-xs font-bold rounded-xl shadow-md shadow-orange-500/10 hover:opacity-95 transition-all text-center">
+                    เข้าสู่ระบบตอนนี้
+                </a>
+                <button id="btn-close-auth-modal" class="block w-full py-3 bg-white/60 hover:bg-white/90 text-slate-600 text-xs font-bold rounded-xl transition-all">
+                    ไว้ทีหลัง
+                </button>
             </div>
+        </div>
+    </div>
 
-            <hr class="border-slate-100">
-
-            <div class="space-y-2.5 text-left text-xs px-2">
-                <div class="flex items-center space-x-3 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                    <span class="text-lg">📞</span>
-                    <div>
-                        <p class="text-[10px] text-slate-400 font-medium">เบอร์โทรศัพท์ติดต่อ</p>
-                        <p id="contact-pop-phone" class="font-bold text-slate-700 mt-0.5">กำลังโหลด...</p>
-                    </div>
+    <div id="creator-contact-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-3xl max-w-xs w-full p-6 text-center shadow-xl border border-slate-100 space-y-4">
+            <div id="contact-pop-avatar" class="w-20 h-20 mx-auto rounded-full overflow-hidden bg-slate-100 border-2 border-orange-500/20">
+                <img src="https://cdn-icons-png.flaticon.com/512/149/149071.png" class="w-full h-full object-cover">
+            </div>
+            <div>
+                <h3 id="contact-pop-name" class="text-sm font-black text-slate-800">Creator Name</h3>
+                <p class="text-[10px] text-slate-400 font-medium">ครีเอเตอร์ประจำคอมมูนิตี้</p>
+            </div>
+            <div class="space-y-2 text-left bg-slate-50 p-3 rounded-2xl border border-slate-100">
+                <div class="text-xs">
+                    <span class="font-bold text-slate-500 block text-[9px] uppercase tracking-wider">เบอร์โทรศัพท์ (PHONE)</span>
+                    <span id="contact-pop-phone" class="text-slate-700 font-bold font-mono">-</span>
                 </div>
-                <div class="flex items-center space-x-3 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                    <span class="text-lg">💬</span>
-                    <div>
-                        <p class="text-[10px] text-slate-400 font-medium">LINE ID</p>
-                        <p id="contact-pop-line" class="font-bold text-slate-700 mt-0.5">กำลังโหลด...</p>
-                    </div>
+                <div class="text-xs pt-1 border-t border-slate-200/50">
+                    <span class="font-bold text-slate-500 block text-[9px] uppercase tracking-wider">ไลน์ไอดี (LINE ID)</span>
+                    <span id="contact-pop-line" class="text-slate-700 font-bold">-</span>
                 </div>
             </div>
+            <button id="contact-modal-close-btn" class="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-xl transition-all">
+                ปิดหน้าต่าง
+            </button>
         </div>
     </div>
 
