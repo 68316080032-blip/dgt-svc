@@ -1,4 +1,4 @@
-// app.js - ฉบับเปิด-ปิด เมนูหลังบ้านตามสิทธิ์ของบทบาท Role ในระบบผู้ใช้งาน
+// app.js - ฉบับเปิด-ปิด เมนูหลังบ้านตามสิทธิ์ของบทบาท Role ในระบบผู้ใช้งาน + อัปเดต Dropdown โปรไฟล์การตั้งค่า
 import { db, auth } from "./firebase-config.js";
 import { collection, query, where, onSnapshot, doc, getDoc, updateDoc, addDoc, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
@@ -17,27 +17,41 @@ let expandState = {
     "Motion Graphic / 3D": false
 };
 
-// 🛡️ ตรวจสอบสถานะผู้ใช้งาน และ สิทธิ์เข้าถึงหน้าแรกปกติ + ควบคุมปุ่มล็อกอิน/แดชบอร์ด บน Navbar
+// 🛡️ ตรวจสอบสถานะผู้ใช้งาน และ สิทธิ์เข้าถึงหน้าแรกปกติ + ควบคุมปุ่มล็อกอิน/Dropdown โปรไฟล์ บน Navbar
 onAuthStateChanged(auth, async (user) => {
     const adminLinkElement = document.getElementById("admin-link");
     const loginBtnElement = document.getElementById("login-btn");
-    const dashboardLinkElement = document.getElementById("dashboard-link");
+    const userProfileMenu = document.getElementById("user-profile-menu");
     
     if (user) {
         currentUserId = user.uid;
         
-        // 🔄 ถ้าเข้าสู่ระบบแล้ว -> ซ่อนปุ่มเข้าสู่ระบบ และแสดงปุ่มแดชบอร์ดแทน
+        // 🔄 ถ้าเข้าสู่ระบบแล้ว -> ซ่อนปุ่มเข้าสู่ระบบเดิม แล้วแสดงชุดโปรไฟล์ Dropdown แทน
         if (loginBtnElement) loginBtnElement.classList.add("hidden");
-        if (dashboardLinkElement) dashboardLinkElement.classList.remove("hidden");
+        if (userProfileMenu) userProfileMenu.classList.remove("hidden");
 
         try {
             const userDoc = await getDoc(doc(db, "users", user.uid));
             if (userDoc.exists()) {
                 const uData = userDoc.data();
                 currentUserName = uData.name || uData.displayName || user.email;
-                currentUserAvatar = uData.avatarUrl || uData.avatar || "https://cdn-icons-png.flaticon.com/512/149/149071.png";
+                currentUserAvatar = uData.avatarUrl || uData.avatar || "";
                 
-                // 🔐 ตรวจสอบบทบาท: ถ้าเป็น admin หรือ dev ให้แสดงเมนูหลังบ้านแอดมิน
+                // 📝 อัปเดตชื่อผู้ใช้ลงใน UI Navbar และ Dropdown กล่องตั้งค่า
+                if (document.getElementById("nav-username")) document.getElementById("nav-username").innerText = currentUserName;
+                if (document.getElementById("dropdown-user-name")) document.getElementById("dropdown-user-name").innerText = currentUserName;
+                
+                // 🖼️ อัปเดตรูปอวาตาร์จริง (หากไม่มีจะใช้ตัวอักษรแรกของชื่อเล่นสร้างเป็นไอคอนแบบพรีเมียมแทน)
+                const avatarZone = document.getElementById("nav-avatar-zone");
+                if (avatarZone) {
+                    if (currentUserAvatar) {
+                        avatarZone.innerHTML = `<img src="${currentUserAvatar}" class="w-full h-full object-cover" onerror="this.onerror=null; this.parentNode.innerText='${currentUserName.charAt(0).toUpperCase()}';">`;
+                    } else {
+                        avatarZone.innerText = currentUserName.charAt(0).toUpperCase();
+                    }
+                }
+
+                // 🔐 ตรวจสอบบทบาท: ถ้าเป็น admin หรือ dev ให้แสดงเมนูหลังบ้านแอดมิน (ในกล่อง Dropdown)
                 const userRole = (uData.role || "").toLowerCase().trim();
                 if (adminLinkElement) {
                     if (userRole === "admin" || userRole === "dev") {
@@ -55,10 +69,10 @@ onAuthStateChanged(auth, async (user) => {
         currentUserName = "Anonymous";
         currentUserAvatar = "https://cdn-icons-png.flaticon.com/512/149/149071.png";
         
-        // 🔄 ถ้าไม่ได้ล็อกอิน -> แสดงปุ่มเข้าสู่ระบบ ซ่อนปุ่มแดชบอร์ดและแอดมินทั้งหมด
+        // 🔄 ถ้าไม่ได้ล็อกอิน -> ย้อนคืนสิทธิ์ แสดงปุ่มเข้าสู่ระบบ ซ่อน Dropdown โปรไฟล์ทั้งหมด
         if (loginBtnElement) loginBtnElement.classList.remove("hidden");
-        if (dashboardLinkElement) dashboardLinkElement.classList.add("hidden");
         if (adminLinkElement) adminLinkElement.classList.add("hidden");
+        if (userProfileMenu) userProfileMenu.classList.add("hidden");
     }
 });
 
@@ -182,11 +196,9 @@ function renderCategoryRow(itemsArray, categoryName, targetGridElement, moreButt
         const handleCardAction = (e, callback) => {
             e.stopPropagation();
             if (!currentUserId) {
-                // ถ้ายังไม่ได้เข้าสู่ระบบ -> เด้งหน้าต่างแจ้งเตือนโปร่งใสขุ่น
                 const authModal = document.getElementById("auth-guard-modal");
                 if (authModal) authModal.classList.remove("hidden");
             } else {
-                // ถ้าเข้าสู่ระบบแล้ว -> ทำตามปกติ
                 callback();
             }
         };
@@ -323,6 +335,46 @@ function initCommentStream(postId) {
 
 // ================= 🛠️ 5. EVENT LISTENERS MOUNT ZONE =================
 document.addEventListener("DOMContentLoaded", () => {
+    
+    // ⚙️ 5.1 ระบบเมนูคุมกล่องตั้งค่าดรอปดาวน์สไตล์ Pinterest (Dropdown Controller)
+    const btnToggle = document.getElementById("btn-dropdown-toggle");
+    const dropdownBox = document.getElementById("nav-dropdown-box");
+    const arrowIcon = document.getElementById("dropdown-arrow");
+
+    if (btnToggle && dropdownBox) {
+        btnToggle.onclick = (e) => {
+            e.stopPropagation();
+            const isHidden = dropdownBox.classList.contains("hidden");
+            if (isHidden) {
+                dropdownBox.classList.remove("hidden");
+                if (arrowIcon) arrowIcon.classList.add("rotate-180");
+            } else {
+                dropdownBox.classList.add("hidden");
+                if (arrowIcon) arrowIcon.classList.remove("rotate-180");
+            }
+        };
+
+        document.addEventListener("click", () => {
+            dropdownBox.classList.add("hidden");
+            if (arrowIcon) arrowIcon.classList.remove("rotate-180");
+        });
+    }
+
+    // 🚪 5.2 ฟังก์ชันออกจากระบบ (Logout Event)
+    const logoutBtn = document.getElementById("btn-nav-logout");
+    if (logoutBtn) {
+        logoutBtn.onclick = async () => {
+            try {
+                await auth.signOut();
+                window.location.reload();
+            } catch (err) { 
+                console.error("Logout Error:", err);
+                alert("เกิดข้อผิดพลาดทางระบบ กรุณาลองใหม่อีกครั้งครับ"); 
+            }
+        };
+    }
+
+    // ================= โครงสร้างตัวปิดและระบบเดิมของแพลตฟอร์ม =================
     const closeBtn = document.getElementById("modal-close-btn");
     if (closeBtn) {
         closeBtn.onclick = () => {
@@ -339,7 +391,6 @@ document.addEventListener("DOMContentLoaded", () => {
         };
     }
 
-    // 🔒 ปุ่มปิดหน้าต่างแจ้งเตือนล็อกอินแบบกระจกฝ้าขุ่น
     const closeAuthModalBtn = document.getElementById("btn-close-auth-modal");
     if (closeAuthModalBtn) {
         closeAuthModalBtn.onclick = () => {
