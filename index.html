@@ -32,13 +32,52 @@
                 <span class="text-[10px] bg-slate-100 font-bold px-2 py-0.5 rounded-md text-slate-500 uppercase tracking-tight">Community</span>
             </div>
             
-            <div class="flex items-center space-x-4">
-                <a href="admin.html" id="admin-link" class="text-xs font-bold text-slate-500 hover:text-slate-800 transition-colors hidden">หลังบ้านแอดมิน</a>
-                <a href="dashboard.html" id="dashboard-link" class="text-xs font-bold text-slate-600 hover:text-orange-600 transition-colors hidden">แดชบอร์ดของฉัน</a>
-                
+            <div class="flex items-center space-x-4 relative">
                 <a href="login.html" id="login-btn" class="px-4 py-2 rounded-xl bg-orange-600 hover:bg-orange-500 text-white text-xs font-bold shadow-md shadow-orange-600/10 transition-all active:scale-[0.98]">
                     เข้าสู่ระบบ 🔑
                 </a>
+
+                <div id="user-profile-menu" class="flex items-center space-x-2 hidden">
+                    <div class="flex items-center space-x-2 bg-slate-100 py-1.5 pl-2 pr-3 rounded-full border border-slate-200/60 max-w-[160px]">
+                        <div id="nav-avatar-zone" class="w-6 h-6 rounded-full overflow-hidden bg-orange-500 text-white font-bold flex items-center justify-center text-xs shrink-0">
+                            -
+                        </div>
+                        <span id="nav-username" class="text-xs font-bold text-slate-700 truncate">กำลังโหลด...</span>
+                    </div>
+                    <button id="btn-dropdown-toggle" class="w-8 h-8 rounded-full border border-slate-200 flex items-center justify-center bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-800 transition-all focus:outline-none">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 transition-transform duration-200" id="dropdown-arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </button>
+
+                    <div id="nav-dropdown-box" class="absolute right-0 top-full mt-2 w-56 bg-white rounded-2xl border border-slate-100 shadow-xl py-3 px-2 hidden z-50">
+                        <div class="px-3 py-2 border-b border-slate-100 mb-2">
+                            <span class="block text-[10px] text-slate-400 font-bold uppercase tracking-wider">เข้าสู่ระบบอยู่</span>
+                            <span id="dropdown-user-name" class="block text-xs font-black text-slate-800 truncate mt-0.5">-</span>
+                        </div>
+                        
+                        <span class="block px-3 text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">การจัดการ</span>
+                        <a href="dashboard.html" class="flex items-center space-x-2.5 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-xl transition-all">
+                            <span>📊</span>
+                            <span>แดชบอร์ดของฉัน</span>
+                        </a>
+                        <a href="admin.html" id="admin-link" class="flex items-center space-x-2.5 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-xl transition-all hidden">
+                            <span>🛡️</span>
+                            <span>หลังบ้านแอดมิน</span>
+                        </a>
+                        <a href="settings.html" class="flex items-center space-x-2.5 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-xl transition-all">
+                            <span>⚙️</span>
+                            <span>ตั้งค่าบัญชี (Settings)</span>
+                        </a>
+                        
+                        <hr class="my-1.5 border-slate-100">
+                        <button id="btn-nav-logout" class="w-full flex items-center space-x-2.5 px-3 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-xl transition-all text-left">
+                            <span>🚪</span>
+                            <span>ออกจากระบบ</span>
+                        </button>
+                    </div>
+                </div>
+
             </div>
         </div>
     </nav>
