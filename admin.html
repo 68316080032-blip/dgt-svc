@@ -5,9 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard - Portfolio Management</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="./style.css">
+    <link rel="stylesheet" href="./js/css/style.css">
     <style>
-        /* CSS แอนิเมชันสำหรับกระตุกตาแอดมินเมื่อมีงานติดคำหยาบโหลดเข้ามา */
         @keyframes pulseOnce {
             0% { transform: scale(0.98); opacity: 0.8; }
             50% { transform: scale(1.01); border-color: #f43f5e; }
@@ -16,7 +15,6 @@
         .animate-pulse-once {
             animation: pulseOnce 0.6s ease-out forwards;
         }
-        
     </style>
 </head>
 <body class="bg-slate-100 font-sans text-slate-800 antialiased">
@@ -39,7 +37,6 @@
     <main class="max-w-7xl mx-auto px-4 py-8">
         
         <section class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
-            
             <div class="bg-rose-50 border border-rose-200 p-6 rounded-2xl shadow-sm transition-all hover:shadow-md">
                 <div class="flex justify-between items-center">
                     <div>
@@ -61,11 +58,9 @@
                 </div>
                 <p class="text-[11px] text-emerald-500/90 mt-3 font-medium">จำนวนผลงานคลีนสะอาดทั้งหมดที่ปล่อยผ่านแสดงบนแกลเลอรีหน้าแรกอัตโนมัติ</p>
             </div>
-
         </section>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-            
             <div class="lg:col-span-2 space-y-4">
                 <div class="flex items-center justify-between border-b border-slate-200 pb-3">
                     <div>
@@ -85,10 +80,9 @@
                 <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
                     <h3 class="font-black text-xs text-slate-400 uppercase tracking-wider mb-3 flex items-center">
                         <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 mr-2 animate-ping"></span> 
-                        เจ้าหน้าที่ที่กำลังออนไลน์
+                        เจ้าหน้าที่ระบบที่กําลังออนไลน์ (<span id="count-staffs" class="font-bold">0</span>)
                     </h3>
-                    <div id="staff-monitor-list" class="space-y-2">
-                    </div>
+                    <div id="staff-monitor-list" class="space-y-2"></div>
                 </div>
 
                 <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
@@ -102,12 +96,17 @@
                     </div>
                 </div>
             </div>
-
         </div>
 
         <section class="mt-12 bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
-            <div class="p-5 border-b border-slate-100 bg-slate-50/50">
+            <div class="p-5 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                 <h3 class="font-black text-sm text-slate-800">📋 ตารางรายชื่อสมาชิกครีเอเตอร์</h3>
+                
+                <div id="user-pagination" class="flex items-center space-x-2 text-xs">
+                    <span id="page-info" class="text-slate-500 font-medium mr-1">หน้า 1 / 1</span>
+                    <button id="btn-prev-page" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 disabled:opacity-40 disabled:hover:bg-slate-100 text-slate-700 font-bold rounded-lg border border-slate-200 transition-all focus:outline-none">◀</button>
+                    <button id="btn-next-page" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 disabled:opacity-40 disabled:hover:bg-slate-100 text-slate-700 font-bold rounded-lg border border-slate-200 transition-all focus:outline-none">▶</button>
+                </div>
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full text-left border-collapse text-xs">
@@ -119,8 +118,7 @@
                             <th class="py-3 px-4 text-right">การจัดการ</th>
                         </tr>
                     </thead>
-                    <tbody id="user-table-body" class="divide-y divide-slate-100">
-                    </tbody>
+                    <tbody id="user-table-body" class="divide-y divide-slate-100"></tbody>
                 </table>
             </div>
         </section>
@@ -186,6 +184,6 @@
         </form>
     </div>
 
-    <script type="module" src="./admin.js"></script>
+    <script type="module" src="./js/admin.js"></script>
 </body>
 </html>
